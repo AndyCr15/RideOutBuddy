@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "182854905088",
+    "firebase_url": "https://rideoutbuddy.firebaseio.com",
+    "project_id": "rideoutbuddy",
+    "storage_bucket": "rideoutbuddy.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:182854905088:android:0410806a165f12a8",
+        "android_client_info": {
+          "package_name": "com.androidandyuk.rideoutbuddy"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "182854905088-gckapfco5ir0j1oiap0rm8g9pjmvkbjm.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.androidandyuk.rideoutbuddy",
+            "certificate_hash": "4fc4e949725f2ecef655554c896ef128275e2d75"
+          }
+        },
+        {
+          "client_id": "182854905088-mvtj4ea4omf9lifiv7idpguno2vtjrt1.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBph4Mdr_fPp8aupp0Q8Gatasop1w4YXI4"
+        }
+      ],
+      "services": {
+        "analytics_service": {
+          "status": 1
+        },
+        "appinvite_service": {
+          "status": 2,
+          "other_platform_oauth_client": [
+            {
+              "client_id": "182854905088-mvtj4ea4omf9lifiv7idpguno2vtjrt1.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        },
+        "ads_service": {
+          "status": 2
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
