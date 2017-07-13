@@ -13,9 +13,11 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="32dp"
         android:hint="Group Name"
+        android:inputType="textCapSentences"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
+
 
     <EditText
         android:id="@+id/groupPasswordET"
@@ -23,6 +25,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:hint="Set Password"
+        android:inputType="textPassword"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/groupNameET" />

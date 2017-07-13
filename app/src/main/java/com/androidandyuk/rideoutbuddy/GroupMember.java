@@ -1,6 +1,7 @@
 package com.androidandyuk.rideoutbuddy;
 
-import com.google.android.gms.maps.model.LatLng;
+import android.location.Location;
+import android.util.Log;
 
 /**
  * Created by AndyCr15 on 11/07/2017.
@@ -9,12 +10,28 @@ import com.google.android.gms.maps.model.LatLng;
 public class GroupMember {
     String ID;
     String name;
-    LatLng location;
+    Location location;
     String state;
 
     public GroupMember(String ID, String name) {
         this.ID = ID;
         this.name = name;
+        this.state = "Normal";
+        this.location = new Location("1,53");
+        this.location.setLatitude(1.0);
+        this.location.setLongitude(51.0);
+        Log.i("GroupMember created","Lat :" + this.location.getLatitude() + " Lon : " + this.location.getLongitude());
     }
 
+    public GroupMember(String ID, String name, Location location, String state) {
+        this.ID = ID;
+        this.name = name;
+        this.location = location;
+        this.state = state;
+    }
+
+    @Override
+    public String toString() {
+        return name + " ID:" + ID;
+    }
 }
