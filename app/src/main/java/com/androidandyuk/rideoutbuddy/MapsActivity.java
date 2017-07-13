@@ -21,6 +21,7 @@ import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 
 import java.util.List;
@@ -40,10 +41,11 @@ import static com.androidandyuk.rideoutbuddy.MainActivity.removeMemberFromGoogle
 import static com.androidandyuk.rideoutbuddy.MainActivity.saveSettings;
 import static com.androidandyuk.rideoutbuddy.MainActivity.user;
 import static com.androidandyuk.rideoutbuddy.MainActivity.userMember;
+import static com.androidandyuk.rideoutbuddy.MainActivity.wl;
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
 
-    private GoogleMap mMap;
+    private static GoogleMap mMap;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -143,7 +145,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
     public void updateLocationGoogle(Location thisLocation, GroupMember user) {
-        Log.i("updateLocationGoogle", "lastKnownLocation :" + lastKnownLocation);
+        Log.i("updateLocationGoogle", "thisLocation :" + thisLocation);
         String thisLat = Double.toString(thisLocation.getLatitude());
         String thisLon = Double.toString(thisLocation.getLongitude());
         Log.i("thisLat " + thisLat, "thisLon " + thisLon);
@@ -171,25 +173,25 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         LatLng selectedLatLng = new LatLng(location.getLatitude(), location.getLongitude());
 
-        mMap.addMarker(new MarkerOptions().position(selectedLatLng).title(title));
+//        mMap.addMarker(new MarkerOptions().position(selectedLatLng).title(title));
 
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(selectedLatLng, 14));
 
     }
 
-    public void showRiders(List<GroupMember> members) {
+    public static void showRiders(List<GroupMember> members) {
         Log.i("showRiders", "called");
         mMap.clear();
         for (GroupMember thisMember : members) {
             Log.i("Marking", "" + thisMember.location);
             LatLng memberLatLng = new LatLng(thisMember.location.getLatitude(), thisMember.location.getLongitude());
-            mMap.addMarker(new MarkerOptions()
-
+            Marker thisMarker = mMap.addMarker(new MarkerOptions()
                     .position(memberLatLng)
                     .title(thisMember.name)
                     .snippet("Status : " + thisMember.state)
                     .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_VIOLET)));
 
+            thisMarker.showInfoWindow();
         }
         LatLng thisLatLng = new LatLng(lastKnownLocation.getLatitude(), lastKnownLocation.getLongitude());
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(thisLatLng, 11));
@@ -206,6 +208,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             i("onKeyDown", "" + activeGroup);
             removeMemberFromGoogle(user.getUid(), activeGroup);
             activeGroup = null;
+            wl.release();
             finish();
         }
         return super.onKeyDown(keyCode, event);

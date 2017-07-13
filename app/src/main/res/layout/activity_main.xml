@@ -7,6 +7,29 @@
     android:background="@color/colorBackground"
     tools:context="com.androidandyuk.rideoutbuddy.MainActivity">
 
+    <LinearLayout
+        android:id="@+id/passwordView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:visibility="invisible">
+
+        <EditText
+            android:id="@+id/groupPassword"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="16dp"
+            android:layout_marginLeft="16dp"
+            android:layout_marginRight="16dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="64dp"
+            android:background="@drawable/rounded_corners_grey"
+            android:ems="10"
+            android:hint="Enter Group Password"
+            android:inputType="textPassword"
+            android:textAlignment="center" />
+    </LinearLayout>
+
     <ListView
         android:id="@+id/groupsListView"
         android:layout_width="match_parent"

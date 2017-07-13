@@ -7,6 +7,7 @@ import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
+import android.os.PowerManager;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
@@ -16,8 +17,10 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.AdapterView;
 import android.widget.BaseAdapter;
+import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -68,7 +71,7 @@ public class MainActivity extends AppCompatActivity {
     public static LocationManager locationManager;
     public static LocationListener locationListener;
     public static int locationUpdatesTime = 30000;
-    public static int locationUpdatesDistance = 500;
+    public static int locationUpdatesDistance = 100;
     public static Location lastKnownLocation;
     public static Boolean mapView = false;
 
@@ -78,8 +81,12 @@ public class MainActivity extends AppCompatActivity {
     public static ArrayList<RideOutGroup> groups;
     public static ArrayList<GroupMember> members;
 
+    public static PowerManager pm;
+    public static PowerManager.WakeLock wl;
+
     static MyGroupAdapter myAdapter;
     ListView listView;
+    View passwordView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -152,10 +159,50 @@ public class MainActivity extends AppCompatActivity {
                 saveSettings();
                 Log.i("listView", "Tapped " + position);
                 addMemberToGoogle(userMember, activeGroup);
-                Intent intent = new Intent(getApplicationContext(), MapsActivity.class);
-                startActivity(intent);
+                checkPassword(activeGroup);
+
             }
         });
+
+    }
+
+    public void checkPassword(final RideOutGroup thisGroup) {
+        passwordView = (View) findViewById(R.id.passwordView);
+        passwordView.setVisibility(View.VISIBLE);
+
+        InputMethodManager inputMethodManager =
+                (InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE);
+        inputMethodManager.toggleSoftInputFromWindow(
+                passwordView.getApplicationWindowToken(),
+                InputMethodManager.SHOW_FORCED, 0);
+
+        final EditText password = (EditText) findViewById(R.id.groupPassword);
+
+        password.setFocusableInTouchMode(true);
+        password.requestFocus();
+
+        password.setOnKeyListener(new View.OnKeyListener() {
+            public boolean onKey(View v, int keyCode, KeyEvent event) {
+                // If the event is a key-down event on the "enter" button
+                if ((event.getAction() == KeyEvent.ACTION_DOWN) &&
+                        (keyCode == KeyEvent.KEYCODE_ENTER)) {
+                    // Perform action on key press
+                    String thisPassword = password.getText().toString();
+                    if (thisPassword.equals(thisGroup.password)) {
+                        Intent intent = new Intent(getApplicationContext(), MapsActivity.class);
+                        startActivity(intent);
+                    } else {
+                        Toast.makeText(MainActivity.this, "Incorrect password", Toast.LENGTH_LONG).show();
+                        password.setText("");
+                        activeGroup = null;
+                        passwordView.setVisibility(View.INVISIBLE);
+                    }
+                    return true;
+                }
+                return false;
+            }
+        });
+
 
     }
 
@@ -357,9 +404,9 @@ public class MainActivity extends AppCompatActivity {
                     }
 //                    Collections.sort(groups);
                     myAdapter.notifyDataSetChanged();
-                    if(mapView) {
-                        Log.i("Updated Date","You're in MapView");
-//                        MapsActivity.showRiders(members);
+                    if (mapView) {
+                        Log.i("Updated Date", "You're in MapView");
+                        MapsActivity.showRiders(members);
                     }
                 }
 
@@ -420,7 +467,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.menu_main, menu);
@@ -463,7 +509,11 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
-            finish();
+            if (passwordView.isShown()) {
+                passwordView.setVisibility(View.INVISIBLE);
+            } else {
+                finish();
+            }
         }
         return super.onKeyDown(keyCode, event);
     }
@@ -479,6 +529,9 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         myAdapter.notifyDataSetChanged();
         if (activeGroup != null) {
+            pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            wl = pm.newWakeLock(PowerManager.SCREEN_DIM_WAKE_LOCK, "Maps");
+            wl.acquire();
             Intent intent = new Intent(getApplicationContext(), MapsActivity.class);
             startActivity(intent);
         }
