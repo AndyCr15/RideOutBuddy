@@ -48,6 +48,8 @@ import com.google.firebase.database.ValueEventListener;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.GregorianCalendar;
 import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
@@ -70,19 +72,24 @@ public class MainActivity extends AppCompatActivity {
 
     public static LocationManager locationManager;
     public static LocationListener locationListener;
-    public static int locationUpdatesTime = 30000;
-    public static int locationUpdatesDistance = 100;
+    public static int locationUpdatesTime = 5000;
+    public static int locationUpdatesDistance = 1;
     public static Location lastKnownLocation;
     public static Boolean mapView = false;
 
     public static SimpleDateFormat sdf = new SimpleDateFormat("dd/MMM/yyyy");
     public static SimpleDateFormat dayOfWeek = new SimpleDateFormat("EEEE");
+    public static int timeDifference;
 
     public static ArrayList<RideOutGroup> groups;
     public static ArrayList<GroupMember> members;
+    public static ArrayList<ChatMessage> messages;
+    public static ArrayList<TripMarker> trip;
 
     public static PowerManager pm;
     public static PowerManager.WakeLock wl;
+
+    public static Boolean recordingTrip = false;
 
     static MyGroupAdapter myAdapter;
     ListView listView;
@@ -117,6 +124,11 @@ public class MainActivity extends AppCompatActivity {
 
         lastKnownLocation = new Location("1,50");
 
+        // attempt to find the difference of now to GMT
+        Calendar now = new GregorianCalendar();
+        Log.i("GregorianCalendar", "" + now);
+        timeDifference = (now.get(Calendar.DST_OFFSET) + now.get(Calendar.ZONE_OFFSET)) / 3600000;
+
         mAuthListener = new FirebaseAuth.AuthStateListener() {
             @Override
             public void onAuthStateChanged(@NonNull FirebaseAuth firebaseAuth) {
@@ -145,6 +157,11 @@ public class MainActivity extends AppCompatActivity {
 
         groups = new ArrayList<>();
         members = new ArrayList<>();
+        messages = new ArrayList<>();
+        trip = new ArrayList<>();
+
+        pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "My Tag");
 
         loadGroupsFromGoogle();
         initiateList();
@@ -170,11 +187,8 @@ public class MainActivity extends AppCompatActivity {
         passwordView = (View) findViewById(R.id.passwordView);
         passwordView.setVisibility(View.VISIBLE);
 
-        InputMethodManager inputMethodManager =
-                (InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE);
-        inputMethodManager.toggleSoftInputFromWindow(
-                passwordView.getApplicationWindowToken(),
-                InputMethodManager.SHOW_FORCED, 0);
+        InputMethodManager inputMethodManager = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        inputMethodManager.toggleSoftInputFromWindow(passwordView.getApplicationWindowToken(), InputMethodManager.SHOW_FORCED, 0);
 
         final EditText password = (EditText) findViewById(R.id.groupPassword);
 
@@ -189,6 +203,8 @@ public class MainActivity extends AppCompatActivity {
                     // Perform action on key press
                     String thisPassword = password.getText().toString();
                     if (thisPassword.equals(thisGroup.password)) {
+                        wl.acquire();
+                        passwordView.setVisibility(View.INVISIBLE);
                         Intent intent = new Intent(getApplicationContext(), MapsActivity.class);
                         startActivity(intent);
                     } else {
@@ -364,14 +380,14 @@ public class MainActivity extends AppCompatActivity {
                             if (detailsDS.getKey().equals("Riders")) {
                                 // counts the children of the Riders node to get the rider count in each group
                                 myRef.child(groupDS.getKey()).child("Details").child("RiderCount").setValue(Long.toString(detailsDS.getChildrenCount()));
-                                Log.i("detailsDS", "activeGroup " + activeGroup);
+                                Log.i("detailsDS", "riderCount " + detailsDS.getChildrenCount());
                                 if (activeGroup != null) {
                                     Log.i("detailsDS", "activeGroup.ID " + activeGroup.ID);
                                     Log.i("detailsDS", "groupDS.getKey " + groupDS.getKey());
                                     if (groupDS.getKey().equals(activeGroup.ID)) {
                                         for (DataSnapshot riderDS : detailsDS.getChildren()) {
                                             // check all the rider data has been added to Google
-                                            if (riderDS.getChildrenCount() == 4) {
+                                            if (riderDS.getChildrenCount() == 5) {
                                                 Log.i("riderDS", "riderDS " + riderDS);
                                                 GenericTypeIndicator<Map<String, String>> genericTypeIndicator = new GenericTypeIndicator<Map<String, String>>() {
                                                 };
@@ -384,6 +400,7 @@ public class MainActivity extends AppCompatActivity {
                                                 String riderState = map.get("riderState");
                                                 String riderLat = map.get("Lat");
                                                 String riderLon = map.get("Lon");
+                                                String riderUpdated = map.get("LastUpdate");
 
                                                 Log.i("Name " + riderName, "State " + riderState);
                                                 Log.i("googleLat" + Double.parseDouble(riderLat), "googleLon" + Double.parseDouble(riderLon));
@@ -391,10 +408,39 @@ public class MainActivity extends AppCompatActivity {
                                                 riderLocation.setLatitude(Double.parseDouble(riderLat));
                                                 riderLocation.setLongitude(Double.parseDouble(riderLon));
 
-                                                GroupMember newRider = new GroupMember(riderDS.getKey(), riderName, riderLocation, riderState);
+                                                GroupMember newRider = new GroupMember(riderDS.getKey(), riderName, riderLocation, riderState, riderUpdated);
 
                                                 Log.i("Adding newRider", "" + newRider);
                                                 members.add(newRider);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (detailsDS.getKey().equals("Messages")) {
+                                if (activeGroup != null) {
+                                    if (groupDS.getKey().equals(activeGroup.ID)) {
+                                        messages.clear();
+                                        for (DataSnapshot messagesDS : detailsDS.getChildren()) {
+                                            // check all the rider data has been added to Google
+                                            if (messagesDS.getChildrenCount() == 3) {
+                                                GenericTypeIndicator<Map<String, String>> genericTypeIndicator = new GenericTypeIndicator<Map<String, String>>() {
+                                                };
+
+                                                Map<String, String> map = null;
+                                                map = messagesDS.getValue(genericTypeIndicator);
+                                                Log.i("messagesDS.getKey", "" + messagesDS.getKey());
+
+                                                String ID = messagesDS.getKey();
+                                                String msg = map.get("msg");
+                                                String name = map.get("name");
+                                                String stamp = map.get("stamp");
+
+                                                ChatMessage newMessage = new ChatMessage(ID, name, msg, stamp);
+
+                                                Log.i("Adding newMessage", "" + newMessage);
+                                                messages.add(newMessage);
                                             }
                                         }
                                     }
@@ -529,9 +575,6 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         myAdapter.notifyDataSetChanged();
         if (activeGroup != null) {
-            pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-            wl = pm.newWakeLock(PowerManager.SCREEN_DIM_WAKE_LOCK, "Maps");
-            wl.acquire();
             Intent intent = new Intent(getApplicationContext(), MapsActivity.class);
             startActivity(intent);
         }

@@ -12,6 +12,7 @@ public class GroupMember {
     String name;
     Location location;
     String state;
+    String updated;
 
     public GroupMember(String ID, String name) {
         this.ID = ID;
@@ -23,15 +24,20 @@ public class GroupMember {
         Log.i("GroupMember created","Lat :" + this.location.getLatitude() + " Lon : " + this.location.getLongitude());
     }
 
-    public GroupMember(String ID, String name, Location location, String state) {
+    public GroupMember(String ID, String name, Location location, String state, String updated) {
         this.ID = ID;
         this.name = name;
         this.location = location;
         this.state = state;
+        this.updated = updated;
     }
 
     @Override
     public String toString() {
         return name + " ID:" + ID;
+    }
+
+    public String getID() {
+        return ID;
     }
 }

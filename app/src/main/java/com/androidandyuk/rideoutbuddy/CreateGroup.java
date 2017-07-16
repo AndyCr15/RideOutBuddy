@@ -12,6 +12,7 @@ import static com.androidandyuk.rideoutbuddy.MainActivity.groups;
 import static com.androidandyuk.rideoutbuddy.MainActivity.saveGroupToGoogle;
 import static com.androidandyuk.rideoutbuddy.MainActivity.saveSettings;
 import static com.androidandyuk.rideoutbuddy.MainActivity.userMember;
+import static com.androidandyuk.rideoutbuddy.MainActivity.wl;
 
 public class CreateGroup extends AppCompatActivity {
 
@@ -30,8 +31,9 @@ public class CreateGroup extends AppCompatActivity {
     public void createGroup(View view) {
         Log.i("createGroup", "Started");
         activeGroup = new RideOutGroup(groupName.getText().toString(), groupPassword.getText().toString());
+        wl.acquire();
         saveSettings();
-        activeGroup.members.add(userMember);
+//        activeGroup.members.add(userMember);
         groups.add(activeGroup);
         saveGroupToGoogle(activeGroup);
         addMemberToGoogle(userMember, activeGroup);

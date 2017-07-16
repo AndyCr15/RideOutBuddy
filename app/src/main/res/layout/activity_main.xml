@@ -8,6 +8,47 @@
     tools:context="com.androidandyuk.rideoutbuddy.MainActivity">
 
     <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/textView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="4dp"
+            android:background="@drawable/rounded_corners_grey_primary"
+            android:padding="8dp"
+            android:text="Choose the group you wish to join, or create a new one."
+            android:textColor="@android:color/white"
+            android:textSize="18sp" />
+
+        <ListView
+            android:id="@+id/groupsListView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:dividerHeight="5dp"
+            tools:layout_editor_absoluteX="8dp"
+            tools:layout_editor_absoluteY="8dp" />
+
+    </LinearLayout>
+
+    <android.support.design.widget.FloatingActionButton
+        android:id="@+id/floatingActionButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentRight="true"
+        android:layout_marginBottom="24dp"
+        android:layout_marginRight="24dp"
+        android:layout_weight="1"
+        android:clickable="true"
+        android:onClick="createGroupClicked"
+        app:fabSize="normal"
+        app:srcCompat="@mipmap/ic_add" />
+
+    <LinearLayout
         android:id="@+id/passwordView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -23,35 +64,14 @@
             android:layout_marginRight="16dp"
             android:layout_marginStart="16dp"
             android:layout_marginTop="64dp"
-            android:background="@drawable/rounded_corners_grey"
+            android:background="@drawable/rounded_corners_reverse"
             android:ems="10"
             android:hint="Enter Group Password"
             android:inputType="textPassword"
-            android:textAlignment="center" />
+            android:padding="16dp"
+            android:textAlignment="center"
+            android:textSize="24sp" />
     </LinearLayout>
-
-    <ListView
-        android:id="@+id/groupsListView"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        tools:layout_editor_absoluteX="8dp"
-        tools:layout_editor_absoluteY="8dp"
-        android:dividerHeight="5dp"/>
-
-    <android.support.design.widget.FloatingActionButton
-        android:id="@+id/floatingActionButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
-        android:layout_alignParentEnd="true"
-        android:layout_alignParentRight="true"
-        android:layout_marginBottom="24dp"
-        android:layout_marginRight="24dp"
-        android:layout_weight="1"
-        android:clickable="true"
-        android:onClick="createGroupClicked"
-        app:fabSize="normal"
-        app:srcCompat="@android:drawable/ic_menu_add" />
 
 
 </RelativeLayout>
