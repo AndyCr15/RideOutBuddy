@@ -3,6 +3,8 @@ package com.androidandyuk.rideoutbuddy;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -52,6 +54,8 @@ import java.util.Calendar;
 import java.util.GregorianCalendar;
 import java.util.Map;
 
+import static java.lang.Double.parseDouble;
+
 public class MainActivity extends AppCompatActivity {
 
     private FirebaseAnalytics mFirebaseAnalytics;
@@ -85,6 +89,8 @@ public class MainActivity extends AppCompatActivity {
     public static ArrayList<GroupMember> members;
     public static ArrayList<ChatMessage> messages;
     public static ArrayList<TripMarker> trip;
+
+    public static SQLiteDatabase tripDB;
 
     public static PowerManager pm;
     public static PowerManager.WakeLock wl;
@@ -160,12 +166,15 @@ public class MainActivity extends AppCompatActivity {
         messages = new ArrayList<>();
         trip = new ArrayList<>();
 
+        tripDB = this.openOrCreateDatabase("trip", MODE_PRIVATE, null);
+
         pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "My Tag");
 
         loadGroupsFromGoogle();
         initiateList();
         loadSettings();
+        loadTrip();
 
         listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
 
@@ -403,10 +412,10 @@ public class MainActivity extends AppCompatActivity {
                                                 String riderUpdated = map.get("LastUpdate");
 
                                                 Log.i("Name " + riderName, "State " + riderState);
-                                                Log.i("googleLat" + Double.parseDouble(riderLat), "googleLon" + Double.parseDouble(riderLon));
+                                                Log.i("googleLat" + parseDouble(riderLat), "googleLon" + parseDouble(riderLon));
                                                 Location riderLocation = new Location("1,20");
-                                                riderLocation.setLatitude(Double.parseDouble(riderLat));
-                                                riderLocation.setLongitude(Double.parseDouble(riderLon));
+                                                riderLocation.setLatitude(parseDouble(riderLat));
+                                                riderLocation.setLongitude(parseDouble(riderLon));
 
                                                 GroupMember newRider = new GroupMember(riderDS.getKey(), riderName, riderLocation, riderState, riderUpdated);
 
@@ -441,6 +450,7 @@ public class MainActivity extends AppCompatActivity {
 
                                                 Log.i("Adding newMessage", "" + newMessage);
                                                 messages.add(newMessage);
+
                                             }
                                         }
                                     }
@@ -488,6 +498,73 @@ public class MainActivity extends AppCompatActivity {
     public static void removeMemberFromGoogle(String uid, RideOutGroup o) {
         myRef.child(o.ID).child("Riders").child(uid).removeValue();
     }
+
+    public static void saveTrip() {
+        Log.i("saveTrip", "size " + trip.size());
+        ed.putInt("tripSize", trip.size()).apply();
+        if (trip.size() > 0) {
+
+            try {
+
+                tripDB.execSQL("CREATE TABLE IF NOT EXISTS trip (lat VARCHAR, lon VARCHAR, time VARCHAR)");
+
+                tripDB.delete("trip", null, null);
+
+                for (TripMarker thisTrip : trip) {
+
+                    // change into String to be saved to the DB
+                    String thisLat = Double.toString(thisTrip.location.getLatitude());
+                    String thisLon = Double.toString(thisTrip.location.getLongitude());
+                    String thisTime = Long.toString(thisTrip.timeStamp);
+
+                    Log.i("Sacing TripMarker", thisLat + " " + thisLon + " " + thisTime);
+                    tripDB.execSQL("INSERT INTO trip (lat, lon, time) VALUES ('" + thisLat + "' , '" + thisLon + "' , '" + thisTime + "')");
+
+                }
+
+            } catch (Exception e) {
+
+                e.printStackTrace();
+
+            }
+        }
+    }
+
+    public static void loadTrip() {
+        int tripSize = sharedPreferences.getInt("tripSize", 0);
+        Log.i("loadTrip", "size " + tripSize);
+
+        trip.clear();
+
+        try {
+
+            Cursor c = tripDB.rawQuery("SELECT * FROM trip", null);
+
+            int latIndex = c.getColumnIndex("lat");
+            int lonIndex = c.getColumnIndex("lon");
+            int timeIndex = c.getColumnIndex("time");
+
+            c.moveToFirst();
+
+            do {
+                Location thisLocation = new Location("50,1");
+                thisLocation.setLatitude(Double.parseDouble(c.getString(latIndex)));
+                thisLocation.setLongitude(Double.parseDouble(c.getString(lonIndex)));
+                TripMarker newMarker = new TripMarker(thisLocation, Long.parseLong(c.getString(timeIndex)), "Loading");
+
+                trip.add(newMarker);
+
+            } while (c.moveToNext());
+
+
+        } catch (Exception e) {
+
+            Log.i("LoadingDB", "Caught Error");
+            e.printStackTrace();
+
+        }
+    }
+
 
     public static void saveSettings() {
         Log.i("Main Activity", "saveSettings");
@@ -585,6 +662,7 @@ public class MainActivity extends AppCompatActivity {
         super.onDestroy();
         Log.i("onDestroy", "Starting");
         mAuth.removeAuthStateListener(mAuthListener);
+        saveTrip();
     }
 
 

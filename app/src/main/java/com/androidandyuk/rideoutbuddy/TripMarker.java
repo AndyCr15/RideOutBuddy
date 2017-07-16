@@ -14,4 +14,9 @@ public class TripMarker {
         this.location = location;
         this.timeStamp = System.currentTimeMillis();
     }
+
+    public TripMarker(Location location, Long millis, String loading) {
+        this.location = location;
+        this.timeStamp = millis;
+    }
 }

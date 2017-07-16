@@ -6,11 +6,19 @@ import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
 
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+
+import java.util.HashMap;
+import java.util.Map;
+
 import static com.androidandyuk.rideoutbuddy.MainActivity.activeGroup;
 import static com.androidandyuk.rideoutbuddy.MainActivity.addMemberToGoogle;
 import static com.androidandyuk.rideoutbuddy.MainActivity.groups;
+import static com.androidandyuk.rideoutbuddy.MainActivity.messages;
 import static com.androidandyuk.rideoutbuddy.MainActivity.saveGroupToGoogle;
 import static com.androidandyuk.rideoutbuddy.MainActivity.saveSettings;
+import static com.androidandyuk.rideoutbuddy.MainActivity.user;
 import static com.androidandyuk.rideoutbuddy.MainActivity.userMember;
 import static com.androidandyuk.rideoutbuddy.MainActivity.wl;
 
@@ -18,6 +26,9 @@ public class CreateGroup extends AppCompatActivity {
 
     EditText groupName;
     EditText groupPassword;
+
+    private DatabaseReference messagesDB;
+    private String temp_key;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -37,6 +48,27 @@ public class CreateGroup extends AppCompatActivity {
         groups.add(activeGroup);
         saveGroupToGoogle(activeGroup);
         addMemberToGoogle(userMember, activeGroup);
+
+        groupPassword.setText("");
+
+        // add a message so it can be clicked to get to the chatroom
+
+        messagesDB = FirebaseDatabase.getInstance().getReference().child(activeGroup.ID).child("Messages");
+
+        temp_key = messagesDB.push().getKey();
+
+        Map<String, Object> map = new HashMap<String, Object>();
+        messagesDB.updateChildren(map);
+        DatabaseReference message_root = messagesDB.child(temp_key);
+        Map<String, Object> map2 = new HashMap<String, Object>();
+        map2.put("name", user.getDisplayName());
+        map2.put("msg", "Welcome to my group. Come say hello!");
+        String stamp = Long.toString(System.currentTimeMillis());
+        map2.put("stamp", stamp);
+        message_root.updateChildren(map2);
+        ChatMessage thisMessage = new ChatMessage(temp_key, user.getDisplayName(), "Welcome to my group. Come say hello!", stamp);
+        messages.add(thisMessage);
+
         finish();
     }
 

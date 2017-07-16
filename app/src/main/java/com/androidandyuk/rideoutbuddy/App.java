@@ -10,13 +10,14 @@ import android.content.Context;
 public class App extends Application {
 
     private static Application sApplication;
+    private static Context context;
 
     public static Application getApplication() {
         return sApplication;
     }
 
-    public static Context getContext() {
-        return getApplication().getApplicationContext();
+    public static Context getAppContext() {
+        return App.context;
     }
 
     @Override

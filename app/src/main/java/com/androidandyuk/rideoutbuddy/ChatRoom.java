@@ -192,7 +192,11 @@ public class ChatRoom extends AppCompatActivity {
             userName.setText(s.name);
 
             TextView message = (TextView) myView.findViewById(R.id.message);
+            String thisMessage = s.message;
             message.setText(s.message);
+            if(thisMessage.contains("** EMERGENCY **")){
+                message.setTextColor(getResources().getColor(R.color.colorRed));
+            }
 
             return myView;
         }

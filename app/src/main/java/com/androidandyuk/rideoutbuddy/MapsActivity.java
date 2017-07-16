@@ -1,5 +1,8 @@
 package com.androidandyuk.rideoutbuddy;
 
+import android.app.Notification;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -60,7 +63,6 @@ import static com.androidandyuk.rideoutbuddy.MainActivity.myRef;
 import static com.androidandyuk.rideoutbuddy.MainActivity.recordingTrip;
 import static com.androidandyuk.rideoutbuddy.MainActivity.removeMemberFromGoogle;
 import static com.androidandyuk.rideoutbuddy.MainActivity.saveSettings;
-import static com.androidandyuk.rideoutbuddy.MainActivity.timeDifference;
 import static com.androidandyuk.rideoutbuddy.MainActivity.trip;
 import static com.androidandyuk.rideoutbuddy.MainActivity.user;
 import static com.androidandyuk.rideoutbuddy.MainActivity.userMember;
@@ -81,6 +83,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
+
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
@@ -95,11 +98,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             @Override
             public void onChildAdded(DataSnapshot dataSnapshot, String s) {
 
+                Log.i("onChildAdded","String " + s);
                 loadGroupsFromGoogle();
                 myChatAdapter2.notifyDataSetChanged();
                 // set view to the last message posted
                 listView2.setSelection(myChatAdapter2.getCount() - 1);
-
+                checkEmergency();
             }
 
             @Override
@@ -209,6 +213,43 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         return "tbc";
     }
 
+    public void checkEmergency() {
+
+        for (ChatMessage thisMessage : messages) {
+
+
+            // check for an emergency
+            if (thisMessage.message.contains("** EMERGENCY **")) {
+
+                Intent intent = new Intent(this, MainActivity.class);
+                PendingIntent pendingIntent = PendingIntent.getActivity(this, 1, intent, 0);
+
+                String text = thisMessage.name + " : " + thisMessage.message.substring(19, thisMessage.message.length());
+
+                Notification notification = new Notification.Builder(this)
+                        .setSmallIcon(R.drawable.ic_stat_name)
+                        .setContentTitle("** EMERGENCY **")
+                        .setContentText(text)
+                        .setContentIntent(pendingIntent)
+                        .setAutoCancel(true)
+//                        .addAction(android.R.drawable.btn_default, "RETURN TO APP", pendingIntent)
+                        .build();
+
+                NotificationManager notificationManager = (NotificationManager) this.getSystemService(NOTIFICATION_SERVICE);
+
+                notificationManager.notify(1, notification);
+
+
+            }
+        }
+
+    }
+
+    public void emergency(View view) {
+        Intent intent = new Intent(getApplicationContext(), EmergencyActivity.class);
+        startActivity(intent);
+    }
+
     public class MyChatAdapter2 extends BaseAdapter {
         public ArrayList<ChatMessage> groupChatAdapter;
 
@@ -234,23 +275,26 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
             LayoutInflater mInflater = getLayoutInflater();
-            View myView = mInflater.inflate(R.layout.chat_listview, null);
+            View myView = mInflater.inflate(R.layout.small_chat_listview, null);
 
             final ChatMessage s = groupChatAdapter.get(position);
 
-            TextView time = (TextView) myView.findViewById(R.id.timeStamp);
-
-            long minute = (s.timestamp / (1000 * 60)) % 60;
-            long hour = ((s.timestamp / (1000 * 60 * 60)) % 24) + timeDifference;
-            String msgTime = String.format("%02d:%02d", hour, minute);
-            time.setText(msgTime);
+//            TextView time = (TextView) myView.findViewById(R.id.timeStamp);
+//
+//            long minute = (s.timestamp / (1000 * 60)) % 60;
+//            long hour = ((s.timestamp / (1000 * 60 * 60)) % 24) + timeDifference;
+//            String msgTime = String.format("%02d:%02d", hour, minute);
+//            time.setText(msgTime);
 
             TextView userName = (TextView) myView.findViewById(R.id.userName);
             userName.setText(s.name);
 
             TextView message = (TextView) myView.findViewById(R.id.message);
+            String thisMessage = s.message;
             message.setText(s.message);
-
+            if(thisMessage.contains("** EMERGENCY **")){
+                message.setTextColor(getResources().getColor(R.color.colorRed));
+            }
             return myView;
         }
 
@@ -394,7 +438,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         Log.i("showRiders", "GroupSize :" + members.size());
         mMap.clear();
         for (GroupMember thisMember : members) {
-            Log.i("Marking", "" + thisMember.location);
             LatLng memberLatLng = new LatLng(thisMember.location.getLatitude(), thisMember.location.getLongitude());
             Marker thisMarker = mMap.addMarker(new MarkerOptions()
                     .position(memberLatLng)

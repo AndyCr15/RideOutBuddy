@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context="com.androidandyuk.rideoutbuddy.EmergencyActivity">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/textView2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="4dp"
+            android:background="@drawable/rounded_corners_reverse"
+            android:padding="8dp"
+            android:text="Please Select your emergency.  The members of your group will be notified."
+            android:textAlignment="center"
+            android:textColor="@android:color/white"
+            android:textSize="18sp" />
+
+        <Button
+            android:id="@+id/toiletBreak"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="4dp"
+            android:background="@drawable/rounded_corners_grey_primary"
+            android:onClick="emergencySelected"
+            android:tag="I need the toilet"
+            android:text="Toilet Break"
+            android:textColor="@android:color/white" />
+
+        <Button
+            android:id="@+id/brokenDownButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="4dp"
+            android:background="@drawable/rounded_corners_grey_primary"
+            android:onClick="emergencySelected"
+            android:tag="I've broken down"
+            android:text="Broken Down"
+            android:textColor="@android:color/white" />
+
+        <Button
+            android:id="@+id/lostButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="4dp"
+            android:background="@drawable/rounded_corners_grey_primary"
+            android:onClick="emergencySelected"
+            android:tag="I think I'm lost!"
+            android:text="Lost"
+            android:textColor="@android:color/white" />
+
+        <Button
+            android:id="@+id/minorOffButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="4dp"
+            android:background="@drawable/rounded_corners_grey_primary"
+            android:onClick="emergencySelected"
+            android:tag="I've had a minor off"
+            android:text="minor off"
+            android:textColor="@android:color/white" />
+
+        <Button
+            android:id="@+id/majorCrashButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="4dp"
+            android:background="@drawable/rounded_corners_grey_primary"
+            android:onClick="emergencySelected"
+            android:tag="I've had a major crash!!!"
+            android:text="Major Crash"
+            android:textColor="@android:color/white" />
+
+        <Button
+            android:id="@+id/clearEmergencies"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="4dp"
+            android:background="@drawable/rounded_corners_grey"
+            android:onClick="clearEmergencies"
+            android:text="clear emergencies"
+            android:textColor="@android:color/white" />
+    </LinearLayout>
+</RelativeLayout>
