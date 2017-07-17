@@ -1,5 +1,9 @@
 package com.androidandyuk.rideoutbuddy;
 
+import android.app.Notification;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.Intent;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.v7.app.AppCompatActivity;
@@ -14,20 +18,21 @@ import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.TextView;
 
-import com.google.firebase.database.ChildEventListener;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
-import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.GenericTypeIndicator;
+import com.google.firebase.database.ValueEventListener;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
 import static com.androidandyuk.rideoutbuddy.MainActivity.activeGroup;
-import static com.androidandyuk.rideoutbuddy.MainActivity.loadGroupsFromGoogle;
 import static com.androidandyuk.rideoutbuddy.MainActivity.messages;
+import static com.androidandyuk.rideoutbuddy.MainActivity.messagesDB;
 import static com.androidandyuk.rideoutbuddy.MainActivity.timeDifference;
+import static com.androidandyuk.rideoutbuddy.MapsActivity.myChatAdapter2;
 
 /**
  * Created by filipp on 6/28/2016.
@@ -40,7 +45,6 @@ public class ChatRoom extends AppCompatActivity {
     private String chat_msg, chat_user_name, ID, stamp;
 
     private String user_name, room_name;
-    private DatabaseReference messagesDB;
     private String temp_key;
 
     static MyChatAdapter myChatAdapter;
@@ -60,7 +64,7 @@ public class ChatRoom extends AppCompatActivity {
 
         initiateList();
 
-        messagesDB = FirebaseDatabase.getInstance().getReference().child(activeGroup.ID).child("Messages");
+        checkMessages();
 
         // press enter to send the message
         final EditText input_msg = (EditText) findViewById(R.id.msg_input);
@@ -103,37 +107,53 @@ public class ChatRoom extends AppCompatActivity {
                 ChatMessage thisMessage = new ChatMessage(temp_key, user_name, input_msg.getText().toString(), stamp);
                 messages.add(thisMessage);
                 myChatAdapter.notifyDataSetChanged();
-
-
+                listView.setSelection(myChatAdapter.getCount() - 1);
 
                 input_msg.setText("");
 
             }
         });
+    }
 
-        messagesDB.addChildEventListener(new ChildEventListener() {
+    private void initiateList() {
+        Log.i("initiateList", "listView");
+        listView = (ListView) findViewById(R.id.chatListView);
+        myChatAdapter = new MyChatAdapter(messages);
+        listView.setAdapter(myChatAdapter);
+    }
+
+    private void checkMessages(){
+        Log.i("checkMessages","Called");
+        messagesDB.addValueEventListener(new ValueEventListener() {
             @Override
-            public void onChildAdded(DataSnapshot dataSnapshot, String s) {
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                Log.i("ChatRoom checkMessages","onDataChange");
+                messages.clear();
+                for (DataSnapshot messagesDS : dataSnapshot.getChildren()) {
+                    GenericTypeIndicator<Map<String, String>> genericTypeIndicator = new GenericTypeIndicator<Map<String, String>>() {
+                    };
 
-                loadGroupsFromGoogle();
+                    Map<String, String> map = null;
+                    map = messagesDS.getValue(genericTypeIndicator);
+                    Log.i("messagesDS.getKey", "" + messagesDS.getKey());
+
+                    String ID = messagesDS.getKey();
+                    String msg = map.get("msg");
+                    String name = map.get("name");
+                    String stamp = map.get("stamp");
+
+                    ChatMessage newMessage = new ChatMessage(ID, name, msg, stamp);
+
+                    Log.i("Adding newMessage", "" + newMessage);
+                    messages.add(newMessage);
+                }
                 myChatAdapter.notifyDataSetChanged();
-                // set view to the last message posted
-                listView.setSelection(myChatAdapter.getCount() - 1);
 
-            }
+                if (myChatAdapter.getCount() > 0) {
+                    listView.setSelection(myChatAdapter2.getCount() - 1);
+                }
 
-            @Override
-            public void onChildChanged(DataSnapshot dataSnapshot, String s) {
-
-            }
-
-            @Override
-            public void onChildRemoved(DataSnapshot dataSnapshot) {
-
-            }
-
-            @Override
-            public void onChildMoved(DataSnapshot dataSnapshot, String s) {
+                checkEmergency();
 
             }
 
@@ -142,14 +162,40 @@ public class ChatRoom extends AppCompatActivity {
 
             }
         });
-
     }
 
-    private void initiateList() {
-        Log.i("initiateList", "listView");
-        listView = (ListView) findViewById(R.id.chatListView);
-        myChatAdapter = new MyChatAdapter(messages);
-        listView.setAdapter(myChatAdapter);
+    private void checkEmergency() {
+
+        Log.i("checkEmergency","messages.size " + messages.size());
+
+        for (ChatMessage thisMessage : messages) {
+
+            // check for an emergency
+            if (thisMessage.message.contains("** EMERGENCY **")) {
+
+                Log.i("checkEmergency","Emergency Found");
+
+                Intent intent = new Intent(this, MainActivity.class);
+                PendingIntent pendingIntent = PendingIntent.getActivity(this, 1, intent, 0);
+
+                String text = thisMessage.name + " : " + thisMessage.message.substring(19, thisMessage.message.length());
+
+                Notification notification = new Notification.Builder(this)
+                        .setSmallIcon(R.drawable.ic_stat_name)
+                        .setContentTitle("** EMERGENCY **")
+                        .setContentText(text)
+                        .setContentIntent(pendingIntent)
+                        .setAutoCancel(true)
+//                        .addAction(android.R.drawable.btn_default, "RETURN TO APP", pendingIntent)
+                        .build();
+
+                NotificationManager notificationManager = (NotificationManager) this.getSystemService(NOTIFICATION_SERVICE);
+
+                notificationManager.notify(1, notification);
+
+            }
+        }
+
     }
 
     public class MyChatAdapter extends BaseAdapter {
@@ -194,13 +240,11 @@ public class ChatRoom extends AppCompatActivity {
             TextView message = (TextView) myView.findViewById(R.id.message);
             String thisMessage = s.message;
             message.setText(s.message);
-            if(thisMessage.contains("** EMERGENCY **")){
+            if (thisMessage.contains("** EMERGENCY **")) {
                 message.setTextColor(getResources().getColor(R.color.colorRed));
             }
-
             return myView;
         }
-
     }
 
 //    private void append_chat_conversation(DataSnapshot dataSnapshot) {

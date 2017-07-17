@@ -21,9 +21,11 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.BaseAdapter;
 import android.widget.EditText;
 import android.widget.ListView;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -63,7 +65,7 @@ public class MainActivity extends AppCompatActivity {
     private FirebaseAuth.AuthStateListener mAuthListener;
     public static FirebaseDatabase database;
     public static FirebaseUser user;
-    public static DatabaseReference myRef;
+    public static DatabaseReference rootDB;
     String signInOut = "Sign In";
     private static final int RC_SIGN_IN = 9001;
     private GoogleApiClient mGoogleApiClient;
@@ -91,6 +93,8 @@ public class MainActivity extends AppCompatActivity {
     public static ArrayList<TripMarker> trip;
 
     public static SQLiteDatabase tripDB;
+    public static DatabaseReference messagesDB;
+    public static DatabaseReference ridersDB;
 
     public static PowerManager pm;
     public static PowerManager.WakeLock wl;
@@ -100,6 +104,9 @@ public class MainActivity extends AppCompatActivity {
     static MyGroupAdapter myAdapter;
     ListView listView;
     View passwordView;
+    Spinner spinnerGPSrate;
+
+    public static String GPSrate = "Med";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -130,6 +137,23 @@ public class MainActivity extends AppCompatActivity {
 
         lastKnownLocation = new Location("1,50");
 
+        spinnerGPSrate = (Spinner) findViewById(R.id.spinnerGPS);
+        spinnerGPSrate.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, GPSrateEnum.values()));
+
+        switch (GPSrate) {
+            case "High":
+                spinnerGPSrate.setSelection(0);
+                break;
+            case "Med":
+                spinnerGPSrate.setSelection(1);
+                break;
+            case "Low":
+                spinnerGPSrate.setSelection(2);
+                break;
+        }
+
+        passwordView = findViewById(R.id.passwordView);
+
         // attempt to find the difference of now to GMT
         Calendar now = new GregorianCalendar();
         Log.i("GregorianCalendar", "" + now);
@@ -159,7 +183,7 @@ public class MainActivity extends AppCompatActivity {
         mAuth.addAuthStateListener(mAuthListener);
 
         database = FirebaseDatabase.getInstance();
-        myRef = database.getReference();
+        rootDB = database.getReference();
 
         groups = new ArrayList<>();
         members = new ArrayList<>();
@@ -182,6 +206,7 @@ public class MainActivity extends AppCompatActivity {
             public void onItemClick(AdapterView<?> adapterView, View view, int position, long l) {
                 // this is for editing a fueling, it stores the info in itemLongPressed
                 activeGroup = groups.get(position);
+                loadGroupsFromGoogle();
                 saveSettings();
                 Log.i("listView", "Tapped " + position);
                 addMemberToGoogle(userMember, activeGroup);
@@ -193,40 +218,58 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void checkPassword(final RideOutGroup thisGroup) {
-        passwordView = (View) findViewById(R.id.passwordView);
-        passwordView.setVisibility(View.VISIBLE);
-
-        InputMethodManager inputMethodManager = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-        inputMethodManager.toggleSoftInputFromWindow(passwordView.getApplicationWindowToken(), InputMethodManager.SHOW_FORCED, 0);
-
-        final EditText password = (EditText) findViewById(R.id.groupPassword);
-
-        password.setFocusableInTouchMode(true);
-        password.requestFocus();
-
-        password.setOnKeyListener(new View.OnKeyListener() {
-            public boolean onKey(View v, int keyCode, KeyEvent event) {
-                // If the event is a key-down event on the "enter" button
-                if ((event.getAction() == KeyEvent.ACTION_DOWN) &&
-                        (keyCode == KeyEvent.KEYCODE_ENTER)) {
-                    // Perform action on key press
-                    String thisPassword = password.getText().toString();
-                    if (thisPassword.equals(thisGroup.password)) {
-                        wl.acquire();
-                        passwordView.setVisibility(View.INVISIBLE);
-                        Intent intent = new Intent(getApplicationContext(), MapsActivity.class);
-                        startActivity(intent);
-                    } else {
-                        Toast.makeText(MainActivity.this, "Incorrect password", Toast.LENGTH_LONG).show();
-                        password.setText("");
-                        activeGroup = null;
-                        passwordView.setVisibility(View.INVISIBLE);
-                    }
-                    return true;
-                }
-                return false;
+        checkMembers(thisGroup);
+        Log.i("checkPassword", "members.size() " + members.size());
+        Boolean alreadyInGroup = false;
+        for (GroupMember thisMember : members) {
+            Log.i("thisMember.ID " + thisMember.ID, "user.getUid() " + user.getUid());
+            if (thisMember.ID.equals(user.getUid())) {
+                Log.i("checkPassword", "Already in Group");
+                alreadyInGroup = true;
             }
-        });
+        }
+
+        if (!alreadyInGroup) {
+
+            passwordView.setVisibility(View.VISIBLE);
+
+            InputMethodManager inputMethodManager = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+            inputMethodManager.toggleSoftInputFromWindow(passwordView.getApplicationWindowToken(), InputMethodManager.SHOW_FORCED, 0);
+
+            final EditText password = (EditText) findViewById(R.id.groupPassword);
+
+            password.setFocusableInTouchMode(true);
+            password.requestFocus();
+
+            password.setOnKeyListener(new View.OnKeyListener() {
+                public boolean onKey(View v, int keyCode, KeyEvent event) {
+                    // If the event is a key-down event on the "enter" button
+                    if ((event.getAction() == KeyEvent.ACTION_DOWN) &&
+                            (keyCode == KeyEvent.KEYCODE_ENTER)) {
+                        // Perform action on key press
+                        String thisPassword = password.getText().toString();
+                        if (thisPassword.equals(thisGroup.password)) {
+                            wl.acquire();
+                            passwordView.setVisibility(View.INVISIBLE);
+                            Intent intent = new Intent(getApplicationContext(), MapsActivity.class);
+                            startActivity(intent);
+                        } else {
+                            Toast.makeText(MainActivity.this, "Incorrect password", Toast.LENGTH_LONG).show();
+                            password.setText("");
+                            activeGroup = null;
+                            passwordView.setVisibility(View.INVISIBLE);
+                        }
+                        return true;
+                    }
+                    return false;
+                }
+            });
+        } else {
+            wl.acquire();
+            passwordView.setVisibility(View.INVISIBLE);
+            Intent intent = new Intent(getApplicationContext(), MapsActivity.class);
+            startActivity(intent);
+        }
 
 
     }
@@ -354,18 +397,33 @@ public class MainActivity extends AppCompatActivity {
 
             Log.i("loadGroupsFromGoogle", "Loading");
 
-            final DatabaseReference thisRef = database.getReference();
+//            final DatabaseReference thisRef = database.getReference();
 
-            thisRef.addValueEventListener(new ValueEventListener() {
+            rootDB.addValueEventListener(new ValueEventListener() {
                 @Override
                 public void onDataChange(DataSnapshot dataSnapshot) {
 
                     Log.i("loadGroupsFromGoogle", "Count :" + dataSnapshot.getChildrenCount());
                     groups.clear();
-                    members.clear();
 
-                    for (DataSnapshot groupDS : dataSnapshot.getChildren()) {
-                        Log.i("DataSnapshot", "" + groupDS);
+
+                    for (final DataSnapshot groupDS : dataSnapshot.getChildren()) {
+                        Log.i("DataSnapshot groupDS", "" + groupDS);
+
+                        ridersDB = database.getReference().child(groupDS.getKey()).child("Riders");
+                        ridersDB.addValueEventListener(new ValueEventListener() {
+                            @Override
+                            public void onDataChange(DataSnapshot dataSnapshot) {
+                                rootDB.child(groupDS.getKey()).child("Details").child("RiderCount").setValue(Long.toString(dataSnapshot.getChildrenCount()));
+                            }
+
+                            @Override
+                            public void onCancelled(DatabaseError databaseError) {
+
+                            }
+                        });
+//                        rootDB.child(groupDS.getKey()).child("Details").child("RiderCount").setValue(Long.toString(ridersDB.));
+
                         for (DataSnapshot detailsDS : groupDS.getChildren()) {
 
                             if (detailsDS.getKey().equals("Details")) {
@@ -384,86 +442,59 @@ public class MainActivity extends AppCompatActivity {
                                 RideOutGroup newGroup = new RideOutGroup(ID, name, password, count);
 
                                 groups.add(newGroup);
+                                myAdapter.notifyDataSetChanged();
+
                             }
 
-                            if (detailsDS.getKey().equals("Riders")) {
-                                // counts the children of the Riders node to get the rider count in each group
-                                myRef.child(groupDS.getKey()).child("Details").child("RiderCount").setValue(Long.toString(detailsDS.getChildrenCount()));
-                                Log.i("detailsDS", "riderCount " + detailsDS.getChildrenCount());
-                                if (activeGroup != null) {
-                                    Log.i("detailsDS", "activeGroup.ID " + activeGroup.ID);
-                                    Log.i("detailsDS", "groupDS.getKey " + groupDS.getKey());
-                                    if (groupDS.getKey().equals(activeGroup.ID)) {
-                                        for (DataSnapshot riderDS : detailsDS.getChildren()) {
-                                            // check all the rider data has been added to Google
-                                            if (riderDS.getChildrenCount() == 5) {
-                                                Log.i("riderDS", "riderDS " + riderDS);
-                                                GenericTypeIndicator<Map<String, String>> genericTypeIndicator = new GenericTypeIndicator<Map<String, String>>() {
-                                                };
-
-                                                Map<String, String> map = null;
-                                                map = riderDS.getValue(genericTypeIndicator);
-                                                Log.i("riderDS.getKey", "" + riderDS.getKey());
-
-                                                String riderName = map.get("riderName");
-                                                String riderState = map.get("riderState");
-                                                String riderLat = map.get("Lat");
-                                                String riderLon = map.get("Lon");
-                                                String riderUpdated = map.get("LastUpdate");
-
-                                                Log.i("Name " + riderName, "State " + riderState);
-                                                Log.i("googleLat" + parseDouble(riderLat), "googleLon" + parseDouble(riderLon));
-                                                Location riderLocation = new Location("1,20");
-                                                riderLocation.setLatitude(parseDouble(riderLat));
-                                                riderLocation.setLongitude(parseDouble(riderLon));
-
-                                                GroupMember newRider = new GroupMember(riderDS.getKey(), riderName, riderLocation, riderState, riderUpdated);
-
-                                                Log.i("Adding newRider", "" + newRider);
-                                                members.add(newRider);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            if (detailsDS.getKey().equals("Messages")) {
-                                if (activeGroup != null) {
-                                    if (groupDS.getKey().equals(activeGroup.ID)) {
-                                        messages.clear();
-                                        for (DataSnapshot messagesDS : detailsDS.getChildren()) {
-                                            // check all the rider data has been added to Google
-                                            if (messagesDS.getChildrenCount() == 3) {
-                                                GenericTypeIndicator<Map<String, String>> genericTypeIndicator = new GenericTypeIndicator<Map<String, String>>() {
-                                                };
-
-                                                Map<String, String> map = null;
-                                                map = messagesDS.getValue(genericTypeIndicator);
-                                                Log.i("messagesDS.getKey", "" + messagesDS.getKey());
-
-                                                String ID = messagesDS.getKey();
-                                                String msg = map.get("msg");
-                                                String name = map.get("name");
-                                                String stamp = map.get("stamp");
-
-                                                ChatMessage newMessage = new ChatMessage(ID, name, msg, stamp);
-
-                                                Log.i("Adding newMessage", "" + newMessage);
-                                                messages.add(newMessage);
-
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                            // this needs to move to it's own listener in MapActivity
+//                            if (detailsDS.getKey().equals("Riders")) {
+//                                // counts the children of the Riders node to get the rider count in each group
+//                                rootDB.child(groupDS.getKey()).child("Details").child("RiderCount").setValue(Long.toString(detailsDS.getChildrenCount()));
+//                                Log.i("detailsDS", "riderCount " + detailsDS.getChildrenCount());
+//                                if (activeGroup != null) {
+//                                    Log.i("detailsDS", "activeGroup.ID " + activeGroup.ID);
+//                                    Log.i("detailsDS", "groupDS.getKey " + groupDS.getKey());
+//                                    if (groupDS.getKey().equals(activeGroup.ID)) {
+//                                        members.clear();
+//                                        for (DataSnapshot riderDS : detailsDS.getChildren()) {
+//                                            // check all the rider data has been added to Google
+//                                            if (riderDS.getChildrenCount() == 5) {
+//                                                Log.i("riderDS", "riderDS " + riderDS);
+//                                                GenericTypeIndicator<Map<String, String>> genericTypeIndicator = new GenericTypeIndicator<Map<String, String>>() {
+//                                                };
+//
+//                                                Map<String, String> map = null;
+//                                                map = riderDS.getValue(genericTypeIndicator);
+//                                                Log.i("riderDS.getKey", "" + riderDS.getKey());
+//
+//                                                String riderName = map.get("riderName");
+//                                                String riderState = map.get("riderState");
+//                                                String riderLat = map.get("Lat");
+//                                                String riderLon = map.get("Lon");
+//                                                String riderUpdated = map.get("LastUpdate");
+//
+//                                                Log.i("Name " + riderName, "State " + riderState);
+//                                                Log.i("googleLat" + parseDouble(riderLat), "googleLon" + parseDouble(riderLon));
+//                                                Location riderLocation = new Location("1,20");
+//                                                riderLocation.setLatitude(parseDouble(riderLat));
+//                                                riderLocation.setLongitude(parseDouble(riderLon));
+//
+//                                                GroupMember newRider = new GroupMember(riderDS.getKey(), riderName, riderLocation, riderState, riderUpdated);
+//
+//                                                Log.i("Adding newRider", "" + newRider);
+//                                                members.add(newRider);
+//                                            }
+//                                        }
+//                                    }
+//                                }
+//                            }
                         }
                     }
-//                    Collections.sort(groups);
-                    myAdapter.notifyDataSetChanged();
-                    if (mapView) {
-                        Log.i("Updated Date", "You're in MapView");
-                        MapsActivity.showRiders(members);
-                    }
+//                    myAdapter.notifyDataSetChanged();
+//                    if (mapView) {
+//                        Log.i("Updated Data", "You're in MapView");
+//                        MapsActivity.showRiders(members);
+//                    }
                 }
 
                 @Override
@@ -474,29 +505,80 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    public static void checkMembers(RideOutGroup thisGroup) {
+        Log.i("checkMessages", "Called");
+        ridersDB = database.getReference().child(thisGroup.ID).child("Riders");
+        ridersDB.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                Log.i("MainAct checkRiders", "onDataChange");
+                members.clear();
+                for (DataSnapshot riderDS : dataSnapshot.getChildren()) {
+                    // check all the rider data has been added to Google
+                    if (riderDS.getChildrenCount() == 5) {
+                        GenericTypeIndicator<Map<String, String>> genericTypeIndicator = new GenericTypeIndicator<Map<String, String>>() {
+                        };
+
+                        Map<String, String> map = null;
+                        map = riderDS.getValue(genericTypeIndicator);
+                        Log.i("riderDS.getKey", "" + riderDS.getKey());
+
+                        String riderName = map.get("riderName");
+                        String riderState = map.get("riderState");
+                        String riderLat = map.get("Lat");
+                        String riderLon = map.get("Lon");
+                        String riderUpdated = map.get("LastUpdate");
+
+                        Log.i("Name " + riderName, "State " + riderState);
+                        Log.i("googleLat" + parseDouble(riderLat), "googleLon" + parseDouble(riderLon));
+                        Location riderLocation = new Location("1,20");
+                        riderLocation.setLatitude(parseDouble(riderLat));
+                        riderLocation.setLongitude(parseDouble(riderLon));
+
+                        GroupMember newRider = new GroupMember(riderDS.getKey(), riderName, riderLocation, riderState, riderUpdated);
+
+                        Log.i("Adding newRider", "" + newRider);
+                        members.add(newRider);
+                    }
+                }
+//                myAdapter.notifyDataSetChanged();
+                if (mapView) {
+                    Log.i("Updated Data", "You're in MapView");
+                    MapsActivity.showRiders(members);
+                }
+            }
+
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+
+            }
+        });
+    }
+
+
     public static void saveGroupToGoogle(RideOutGroup o) {
         Log.i("saveGroupToGoogle", "Starting");
 
         // save the group
-        myRef.child(o.ID).child("Details").child("Name").setValue(o.name);
-        myRef.child(o.ID).child("Details").child("Password").setValue(o.password);
-        myRef.child(o.ID).child("Details").child("ID").setValue(o.ID);
-        myRef.child(o.ID).child("Details").child("Created").setValue(o.created.toString());
-        myRef.child(o.ID).child("Details").child("Live").setValue(o.live.toString());
-        myRef.child(o.ID).child("Details").child("RiderCount").setValue(o.riderCount);
+        rootDB.child(o.ID).child("Details").child("Name").setValue(o.name);
+        rootDB.child(o.ID).child("Details").child("Password").setValue(o.password);
+        rootDB.child(o.ID).child("Details").child("ID").setValue(o.ID);
+        rootDB.child(o.ID).child("Details").child("Created").setValue(o.created.toString());
+        rootDB.child(o.ID).child("Details").child("Live").setValue(o.live.toString());
+        rootDB.child(o.ID).child("Details").child("RiderCount").setValue(o.riderCount);
     }
 
     public static void addMemberToGoogle(GroupMember m, RideOutGroup o) {
 
         Log.i("addMemberToGoogle", "" + m);
-        myRef.child(o.ID).child("Riders").child(m.ID).child("riderState").setValue(m.state);
-        myRef.child(o.ID).child("Riders").child(m.ID).child("riderName").setValue(m.name);
-        myRef.child(o.ID).child("Riders").child(m.ID).child("Lat").setValue("1");
-        myRef.child(o.ID).child("Riders").child(m.ID).child("Lon").setValue("50");
+        rootDB.child(o.ID).child("Riders").child(m.ID).child("riderState").setValue(m.state);
+        rootDB.child(o.ID).child("Riders").child(m.ID).child("riderName").setValue(m.name);
+        rootDB.child(o.ID).child("Riders").child(m.ID).child("Lat").setValue("1");
+        rootDB.child(o.ID).child("Riders").child(m.ID).child("Lon").setValue("50");
     }
 
     public static void removeMemberFromGoogle(String uid, RideOutGroup o) {
-        myRef.child(o.ID).child("Riders").child(uid).removeValue();
+        rootDB.child(o.ID).child("Riders").child(uid).removeValue();
     }
 
     public static void saveTrip() {
@@ -565,9 +647,29 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    public static void checkGPSrate() {
+
+        switch (GPSrate) {
+            case "High":
+                locationUpdatesTime = 10000;
+                locationUpdatesDistance = 20;
+                break;
+            case "Med":
+                locationUpdatesTime = 40000;
+                locationUpdatesDistance = 100;
+                break;
+            case "Low":
+                locationUpdatesTime = 120000;
+                locationUpdatesDistance = 500;
+                break;
+        }
+
+
+    }
 
     public static void saveSettings() {
         Log.i("Main Activity", "saveSettings");
+        ed.putString("GPSrate", GPSrate).apply();
         if (activeGroup != null) {
             ed.putString("activeGroupID", activeGroup.ID).apply();
         }
@@ -575,6 +677,7 @@ public class MainActivity extends AppCompatActivity {
 
     public static void loadSettings() {
         Log.i("Main Activity", "loadSettings");
+        GPSrate = sharedPreferences.getString("GPSrate", "Med");
         String activeGroupID = sharedPreferences.getString("activeGroupID", "null");
         if (activeGroupID.equals("null")) {
             activeGroup = null;
@@ -644,6 +747,10 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
+
+        spinnerGPSrate = (Spinner) findViewById(R.id.spinnerGPS);
+        GPSrate = spinnerGPSrate.getSelectedItem().toString();
+        checkGPSrate();
         saveSettings();
     }
 

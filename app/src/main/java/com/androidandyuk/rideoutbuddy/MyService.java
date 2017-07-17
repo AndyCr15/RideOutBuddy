@@ -17,7 +17,7 @@ import java.util.Calendar;
 import java.util.GregorianCalendar;
 
 import static com.androidandyuk.rideoutbuddy.MainActivity.activeGroup;
-import static com.androidandyuk.rideoutbuddy.MainActivity.myRef;
+import static com.androidandyuk.rideoutbuddy.MainActivity.rootDB;
 import static com.androidandyuk.rideoutbuddy.MainActivity.userMember;
 
 public class MyService extends Service
@@ -46,13 +46,13 @@ public class MyService extends Service
             String thisLat = Double.toString(location.getLatitude());
             String thisLon = Double.toString(location.getLongitude());
             Log.i("thisLat " + thisLat, "thisLon " + thisLon);
-            myRef.child(activeGroup.ID).child("Riders").child(userMember.ID).child("Lat").setValue(thisLat);
-            myRef.child(activeGroup.ID).child("Riders").child(userMember.ID).child("Lon").setValue(thisLon);
+            rootDB.child(activeGroup.ID).child("Riders").child(userMember.ID).child("Lat").setValue(thisLat);
+            rootDB.child(activeGroup.ID).child("Riders").child(userMember.ID).child("Lon").setValue(thisLon);
 
             // using time for testing purposes, change to milliseconds for actual use
             Calendar now = new GregorianCalendar();
             String nowString = now.get(Calendar.HOUR_OF_DAY) + ":" + now.get(Calendar.MINUTE);
-            myRef.child(activeGroup.ID).child("Riders").child(userMember.ID).child("LastUpdate").setValue(nowString);
+            rootDB.child(activeGroup.ID).child("Riders").child(userMember.ID).child("LastUpdate").setValue(nowString);
 
         }
 

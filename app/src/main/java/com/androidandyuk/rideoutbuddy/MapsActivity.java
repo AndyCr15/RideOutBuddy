@@ -36,19 +36,21 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
-import com.google.firebase.database.ChildEventListener;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
-import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.GenericTypeIndicator;
+import com.google.firebase.database.ValueEventListener;
 
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
 import java.util.List;
+import java.util.Map;
 
 import static android.util.Log.i;
 import static com.androidandyuk.rideoutbuddy.MainActivity.activeGroup;
+import static com.androidandyuk.rideoutbuddy.MainActivity.checkMembers;
 import static com.androidandyuk.rideoutbuddy.MainActivity.lastKnownLocation;
 import static com.androidandyuk.rideoutbuddy.MainActivity.loadGroupsFromGoogle;
 import static com.androidandyuk.rideoutbuddy.MainActivity.loadSettings;
@@ -59,9 +61,10 @@ import static com.androidandyuk.rideoutbuddy.MainActivity.locationUpdatesTime;
 import static com.androidandyuk.rideoutbuddy.MainActivity.mapView;
 import static com.androidandyuk.rideoutbuddy.MainActivity.members;
 import static com.androidandyuk.rideoutbuddy.MainActivity.messages;
-import static com.androidandyuk.rideoutbuddy.MainActivity.myRef;
+import static com.androidandyuk.rideoutbuddy.MainActivity.messagesDB;
 import static com.androidandyuk.rideoutbuddy.MainActivity.recordingTrip;
 import static com.androidandyuk.rideoutbuddy.MainActivity.removeMemberFromGoogle;
+import static com.androidandyuk.rideoutbuddy.MainActivity.ridersDB;
 import static com.androidandyuk.rideoutbuddy.MainActivity.saveSettings;
 import static com.androidandyuk.rideoutbuddy.MainActivity.trip;
 import static com.androidandyuk.rideoutbuddy.MainActivity.user;
@@ -75,7 +78,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     TextView currentUser;
     private ListView listView2;
     static MyChatAdapter2 myChatAdapter2;
-    private DatabaseReference messagesDB;
 
     private static int viewing;
 
@@ -83,6 +85,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
+
+        Log.i("locationUpdatesTime " +locationUpdatesTime,"locationUpdatesDistance " + locationUpdatesDistance);
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
@@ -94,38 +98,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         messagesDB = FirebaseDatabase.getInstance().getReference().child(activeGroup.ID).child("Messages");
 
-        messagesDB.addChildEventListener(new ChildEventListener() {
-            @Override
-            public void onChildAdded(DataSnapshot dataSnapshot, String s) {
-
-                Log.i("onChildAdded","String " + s);
-                loadGroupsFromGoogle();
-                myChatAdapter2.notifyDataSetChanged();
-                // set view to the last message posted
-                listView2.setSelection(myChatAdapter2.getCount() - 1);
-                checkEmergency();
-            }
-
-            @Override
-            public void onChildChanged(DataSnapshot dataSnapshot, String s) {
-
-            }
-
-            @Override
-            public void onChildRemoved(DataSnapshot dataSnapshot) {
-
-            }
-
-            @Override
-            public void onChildMoved(DataSnapshot dataSnapshot, String s) {
-
-            }
-
-            @Override
-            public void onCancelled(DatabaseError databaseError) {
-
-            }
-        });
+        checkMessages();
+        if (myChatAdapter2.getCount() > 0) {
+            listView2.setSelection(myChatAdapter2.getCount() - 1);
+        }
 
         listView2.setOnItemClickListener(new AdapterView.OnItemClickListener() {
 
@@ -136,6 +112,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             }
         });
 
+        // this is supposed to start checking GPS as a service, I have no evidence that it does
+        // but I keep GPS through a wakelock instead!
         startService(new Intent(this, MyService.class));
 
     }
@@ -157,6 +135,81 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         if (myChatAdapter2.getCount() > 0) {
             listView2.setSelection(myChatAdapter2.getCount() - 1);
         }
+//        checkEmergency();
+    }
+
+    public void checkMessages(){
+        Log.i("checkMessages","Called");
+        messagesDB.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                Log.i("MapsAct checkMessages","onDataChange");
+                messages.clear();
+                for (DataSnapshot messagesDS : dataSnapshot.getChildren()) {
+                    GenericTypeIndicator<Map<String, String>> genericTypeIndicator = new GenericTypeIndicator<Map<String, String>>() {
+                    };
+
+                    Map<String, String> map = null;
+                    map = messagesDS.getValue(genericTypeIndicator);
+                    Log.i("messagesDS.getKey", "" + messagesDS.getKey());
+
+                    String ID = messagesDS.getKey();
+                    String msg = map.get("msg");
+                    String name = map.get("name");
+                    String stamp = map.get("stamp");
+
+                    ChatMessage newMessage = new ChatMessage(ID, name, msg, stamp);
+
+                    Log.i("Adding newMessage", "" + newMessage);
+                    messages.add(newMessage);
+                }
+                myChatAdapter2.notifyDataSetChanged();
+                checkEmergency();
+
+                if (myChatAdapter2.getCount() > 0) {
+                    listView2.setSelection(myChatAdapter2.getCount() - 1);
+                }
+            }
+
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+
+            }
+        });
+    }
+
+    public void checkEmergency() {
+
+        Log.i("checkEmergency","messages.size " + messages.size());
+
+        for (ChatMessage thisMessage : messages) {
+
+            // check for an emergency
+            if (thisMessage.message.contains("** EMERGENCY **")) {
+
+                Log.i("checkEmergency","Emergency Found");
+
+                Intent intent = new Intent(this, MainActivity.class);
+                PendingIntent pendingIntent = PendingIntent.getActivity(this, 1, intent, 0);
+
+                String text = thisMessage.name + " : " + thisMessage.message.substring(19, thisMessage.message.length());
+
+                Notification notification = new Notification.Builder(this)
+                        .setSmallIcon(R.drawable.ic_stat_name)
+                        .setContentTitle("** EMERGENCY **")
+                        .setContentText(text)
+                        .setContentIntent(pendingIntent)
+                        .setAutoCancel(true)
+//                        .addAction(android.R.drawable.btn_default, "RETURN TO APP", pendingIntent)
+                        .build();
+
+                NotificationManager notificationManager = (NotificationManager) this.getSystemService(NOTIFICATION_SERVICE);
+
+                notificationManager.notify(1, notification);
+
+            }
+        }
+
     }
 
     public void recordTrip(View view) {
@@ -211,38 +264,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     public String millisToTime(Long millis) {
         return "tbc";
-    }
-
-    public void checkEmergency() {
-
-        for (ChatMessage thisMessage : messages) {
-
-
-            // check for an emergency
-            if (thisMessage.message.contains("** EMERGENCY **")) {
-
-                Intent intent = new Intent(this, MainActivity.class);
-                PendingIntent pendingIntent = PendingIntent.getActivity(this, 1, intent, 0);
-
-                String text = thisMessage.name + " : " + thisMessage.message.substring(19, thisMessage.message.length());
-
-                Notification notification = new Notification.Builder(this)
-                        .setSmallIcon(R.drawable.ic_stat_name)
-                        .setContentTitle("** EMERGENCY **")
-                        .setContentText(text)
-                        .setContentIntent(pendingIntent)
-                        .setAutoCancel(true)
-//                        .addAction(android.R.drawable.btn_default, "RETURN TO APP", pendingIntent)
-                        .build();
-
-                NotificationManager notificationManager = (NotificationManager) this.getSystemService(NOTIFICATION_SERVICE);
-
-                notificationManager.notify(1, notification);
-
-
-            }
-        }
-
     }
 
     public void emergency(View view) {
@@ -352,6 +373,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
                 locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, locationUpdatesTime, locationUpdatesDistance, locationListener);
 
+                lastKnownLocation.setLatitude(1d);
+                lastKnownLocation.setLongitude(50d);
                 lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
                 updateLocationGoogle(lastKnownLocation, userMember);
                 centerMapOnLocation(lastKnownLocation);
@@ -364,8 +387,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         }
 
-        loadGroupsFromGoogle();
-        showRiders(members);
+        checkMembers(activeGroup);
+//        showRiders(members); // happens in checkMembers anyway
         updateCurrentView();
 
     }
@@ -400,13 +423,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             String thisLat = Double.toString(thisLocation.getLatitude());
             String thisLon = Double.toString(thisLocation.getLongitude());
             Log.i("thisLat " + thisLat, "thisLon " + thisLon);
-            myRef.child(activeGroup.ID).child("Riders").child(user.ID).child("Lat").setValue(thisLat);
-            myRef.child(activeGroup.ID).child("Riders").child(user.ID).child("Lon").setValue(thisLon);
+            ridersDB.child(user.ID).child("Lat").setValue(thisLat);
+            ridersDB.child(user.ID).child("Lon").setValue(thisLon);
 
             // using time for testing purposes, change to milliseconds for actual use
             Calendar now = new GregorianCalendar();
             String nowString = now.get(Calendar.HOUR_OF_DAY) + ":" + now.get(Calendar.MINUTE);
-            myRef.child(activeGroup.ID).child("Riders").child(user.ID).child("LastUpdate").setValue(nowString);
+            ridersDB.child(user.ID).child("LastUpdate").setValue(nowString);
 
             centerMapOnLocation(thisLocation);
         }

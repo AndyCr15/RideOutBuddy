@@ -9,8 +9,12 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.widget.Toast;
 
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.GenericTypeIndicator;
+import com.google.firebase.database.ValueEventListener;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -18,7 +22,6 @@ import java.util.Map;
 import static com.androidandyuk.rideoutbuddy.MainActivity.activeGroup;
 import static com.androidandyuk.rideoutbuddy.MainActivity.messages;
 import static com.androidandyuk.rideoutbuddy.MainActivity.user;
-import static com.androidandyuk.rideoutbuddy.MapsActivity.myChatAdapter2;
 
 public class EmergencyActivity extends AppCompatActivity {
 
@@ -71,8 +74,7 @@ public class EmergencyActivity extends AppCompatActivity {
                             if(thisMessage.message.contains("** EMERGENCY **")){
                                 Log.i("Emergency Found", "thisMessage.ID " + thisMessage.ID);
                                 messagesDB.child(thisMessage.ID).removeValue();
-                                messages.remove(thisMessage);
-                                myChatAdapter2.notifyDataSetChanged();
+                                checkMessages();
                                 Toast.makeText(EmergencyActivity.this, "Emergency found and removed", Toast.LENGTH_SHORT).show();
                             }
                         }
@@ -87,8 +89,7 @@ public class EmergencyActivity extends AppCompatActivity {
                             if(thisMessage.message.contains("** EMERGENCY **") && thisMessage.name.equals(user.getDisplayName())){
                                 Log.i("Emergency Found", "thisMessage.ID " + thisMessage.ID);
                                 messagesDB.child(thisMessage.ID).removeValue();
-                                messages.remove(thisMessage);
-                                myChatAdapter2.notifyDataSetChanged();
+                                checkMessages();
                                 Toast.makeText(EmergencyActivity.this, "Emergency found and removed", Toast.LENGTH_SHORT).show();
                             }
                         }
@@ -97,6 +98,41 @@ public class EmergencyActivity extends AppCompatActivity {
                     }
                 })
                 .show();
+    }
+
+    public void checkMessages(){
+        Log.i("checkMessages","Called");
+        messagesDB.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                Log.i("MapsAct checkMessages","onDataChange");
+                messages.clear();
+                for (DataSnapshot messagesDS : dataSnapshot.getChildren()) {
+                    GenericTypeIndicator<Map<String, String>> genericTypeIndicator = new GenericTypeIndicator<Map<String, String>>() {
+                    };
+
+                    Map<String, String> map = null;
+                    map = messagesDS.getValue(genericTypeIndicator);
+                    Log.i("messagesDS.getKey", "" + messagesDS.getKey());
+
+                    String ID = messagesDS.getKey();
+                    String msg = map.get("msg");
+                    String name = map.get("name");
+                    String stamp = map.get("stamp");
+
+                    ChatMessage newMessage = new ChatMessage(ID, name, msg, stamp);
+
+                    Log.i("Adding newMessage", "" + newMessage);
+                    messages.add(newMessage);
+                }
+
+            }
+
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+
+            }
+        });
     }
 
     @Override

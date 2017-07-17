@@ -35,6 +35,17 @@
         android:onClick="goToChat"
         android:orientation="vertical">
 
+        <Button
+            android:id="@+id/emergencyButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="4dp"
+            android:alpha="0.9"
+            android:background="@drawable/rounded_corners_red"
+            android:onClick="emergency"
+            android:text="emergency"
+            android:textColor="@android:color/white" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -102,17 +113,6 @@
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
         android:orientation="vertical">
-
-        <Button
-            android:id="@+id/emergencyButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_margin="4dp"
-            android:alpha="0.9"
-            android:background="@drawable/rounded_corners_red"
-            android:onClick="emergency"
-            android:text="emergency"
-            android:textColor="@android:color/white" />
 
         <LinearLayout
             android:layout_width="match_parent"

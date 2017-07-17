@@ -7,6 +7,19 @@ import android.util.Log;
  * Created by AndyCr15 on 11/07/2017.
  */
 
+enum GPSrateEnum {
+    High(3), Med(2),Low(1);
+    private final int value;
+
+    private GPSrateEnum(int value) {
+        this.value = value;
+    }
+
+    public int getValue() {
+        return value;
+    }
+}
+
 public class GroupMember {
     String ID;
     String name;
