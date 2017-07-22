@@ -13,17 +13,13 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
 
-import java.util.Calendar;
-import java.util.GregorianCalendar;
-
-import static com.androidandyuk.rideoutbuddy.MainActivity.activeGroup;
-import static com.androidandyuk.rideoutbuddy.MainActivity.rootDB;
-import static com.androidandyuk.rideoutbuddy.MainActivity.userMember;
-
 public class MyService extends Service
 {
     private static final String TAG = "LOCATIONSERVICE";
     private LocationManager mLocationManager = null;
+
+    int gpsTime;
+    int gpsDist;
 
     private class LocationListener implements android.location.LocationListener
     {
@@ -32,7 +28,6 @@ public class MyService extends Service
         public LocationListener(String provider)
         {
             Log.e(TAG, "LocationListener " + provider);
-            MainActivity.lastKnownLocation = new Location(provider);
 
         }
 
@@ -41,18 +36,19 @@ public class MyService extends Service
         {
             Log.e(TAG, "onLocationService: " + location);
             Log.i(TAG, "onLocationService: " + location);
-            MainActivity.lastKnownLocation.set(location);
+
 
             String thisLat = Double.toString(location.getLatitude());
             String thisLon = Double.toString(location.getLongitude());
-            Log.i("thisLat " + thisLat, "thisLon " + thisLon);
-            rootDB.child(activeGroup.ID).child("Riders").child(userMember.ID).child("Lat").setValue(thisLat);
-            rootDB.child(activeGroup.ID).child("Riders").child(userMember.ID).child("Lon").setValue(thisLon);
+            Log.i("thisLat(inS) " + thisLat, "thisLon(inS) " + thisLon);
 
-            // using time for testing purposes, change to milliseconds for actual use
-            Calendar now = new GregorianCalendar();
-            String nowString = now.get(Calendar.HOUR_OF_DAY) + ":" + now.get(Calendar.MINUTE);
-            rootDB.child(activeGroup.ID).child("Riders").child(userMember.ID).child("LastUpdate").setValue(nowString);
+            Intent intent = new Intent();
+            intent.setAction("com.androidandyuk.rideoutbuddy");
+            intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
+            intent.putExtra("Lat", thisLat);
+            intent.putExtra("Lon", thisLon);
+
+            sendBroadcast(intent);
 
         }
 
@@ -87,9 +83,13 @@ public class MyService extends Service
     }
 
     @Override
-    public int onStartCommand(Intent intent, int flags, int startId)
-    {
+    public int onStartCommand(Intent intent, int flags, int startId) {
         Log.e(TAG, "onStartCommand");
+
+        int gpsTime = intent.getIntExtra("Time", 30000);
+        int gpsDist = intent.getIntExtra("Dist", 100);
+        Log.i("gpsTime " + gpsTime,"gpsDist " + gpsDist);
+
         super.onStartCommand(intent, flags, startId);
         return START_STICKY;
     }
@@ -101,7 +101,7 @@ public class MyService extends Service
         initializeLocationManager();
         try {
             mLocationManager.requestLocationUpdates(
-                    LocationManager.NETWORK_PROVIDER, MainActivity.locationUpdatesTime, MainActivity.locationUpdatesDistance,
+                    LocationManager.NETWORK_PROVIDER, gpsTime, gpsDist,
                     mLocationListeners[1]);
         } catch (java.lang.SecurityException ex) {
             Log.i(TAG, "fail to request location update, ignore", ex);
@@ -110,7 +110,7 @@ public class MyService extends Service
         }
         try {
             mLocationManager.requestLocationUpdates(
-                    LocationManager.GPS_PROVIDER, MainActivity.locationUpdatesTime, MainActivity.locationUpdatesDistance,
+                    LocationManager.GPS_PROVIDER, gpsTime, gpsDist,
                     mLocationListeners[0]);
         } catch (java.lang.SecurityException ex) {
             Log.i(TAG, "fail to request location update, ignore", ex);
@@ -129,7 +129,7 @@ public class MyService extends Service
                 try {
                     mLocationManager.removeUpdates(mLocationListeners[i]);
                 } catch (Exception ex) {
-                    Log.i(TAG, "fail to remove location listners, ignore", ex);
+                    Log.i(TAG, "fail to remove location listeners, ignore", ex);
                 }
             }
         }

@@ -21,7 +21,9 @@ import java.util.Map;
 
 import static com.androidandyuk.rideoutbuddy.MainActivity.activeGroup;
 import static com.androidandyuk.rideoutbuddy.MainActivity.messages;
+import static com.androidandyuk.rideoutbuddy.MainActivity.rootDB;
 import static com.androidandyuk.rideoutbuddy.MainActivity.user;
+import static com.androidandyuk.rideoutbuddy.MainActivity.userMember;
 
 public class EmergencyActivity extends AppCompatActivity {
 
@@ -41,6 +43,7 @@ public class EmergencyActivity extends AppCompatActivity {
 
     public void emergencySelected(View view) {
         String reason = "** EMERGENCY **  -  " + view.getTag().toString();
+        updateStatus(view.getTag().toString());
         Log.i("EmergencySelected", reason);
 
         temp_key = messagesDB.push().getKey();
@@ -78,6 +81,7 @@ public class EmergencyActivity extends AppCompatActivity {
                                 Toast.makeText(EmergencyActivity.this, "Emergency found and removed", Toast.LENGTH_SHORT).show();
                             }
                         }
+                        updateStatus("Normal");
                         finish();
 
                     }
@@ -93,11 +97,16 @@ public class EmergencyActivity extends AppCompatActivity {
                                 Toast.makeText(EmergencyActivity.this, "Emergency found and removed", Toast.LENGTH_SHORT).show();
                             }
                         }
+                        updateStatus("Normal");
                         finish();
 
                     }
                 })
                 .show();
+    }
+
+    public void updateStatus(String status){
+        rootDB.child(activeGroup.ID).child("Riders").child(userMember.ID).child("riderState").setValue(status);
     }
 
     public void checkMessages(){

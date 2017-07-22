@@ -43,7 +43,17 @@
             android:windowSoftInputMode="stateHidden" />
         <activity android:name=".CreateGroup" />
         <activity android:name=".ChatRoom" />
-        <activity android:name=".EmergencyActivity"></activity>
+        <activity android:name=".EmergencyActivity" />
+
+        <receiver
+            android:name=".MyReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.androidandyuk.rideoutbuddy">
+                </action>
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

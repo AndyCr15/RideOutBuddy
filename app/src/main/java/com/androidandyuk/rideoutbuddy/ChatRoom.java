@@ -31,7 +31,7 @@ import java.util.Map;
 import static com.androidandyuk.rideoutbuddy.MainActivity.activeGroup;
 import static com.androidandyuk.rideoutbuddy.MainActivity.messages;
 import static com.androidandyuk.rideoutbuddy.MainActivity.messagesDB;
-import static com.androidandyuk.rideoutbuddy.MainActivity.timeDifference;
+import static com.androidandyuk.rideoutbuddy.MainActivity.millisToTime;
 import static com.androidandyuk.rideoutbuddy.MapsActivity.myChatAdapter2;
 
 /**
@@ -40,9 +40,7 @@ import static com.androidandyuk.rideoutbuddy.MapsActivity.myChatAdapter2;
 public class ChatRoom extends AppCompatActivity {
 
     private Button btn_send_msg;
-    //    private EditText input_msg;
     private ListView listView;
-    private String chat_msg, chat_user_name, ID, stamp;
 
     private String user_name, room_name;
     private String temp_key;
@@ -92,20 +90,10 @@ public class ChatRoom extends AppCompatActivity {
             @Override
             public void onClick(View view) {
 
-                temp_key = messagesDB.push().getKey();
+                String msg = input_msg.getText().toString();
 
-                Map<String, Object> map = new HashMap<String, Object>();
-                messagesDB.updateChildren(map);
-                DatabaseReference message_root = messagesDB.child(temp_key);
-                Map<String, Object> map2 = new HashMap<String, Object>();
-                map2.put("name", user_name);
-                map2.put("msg", input_msg.getText().toString());
+                newMessage(msg);
 
-                String stamp = Long.toString(System.currentTimeMillis());
-                map2.put("stamp", stamp);
-                message_root.updateChildren(map2);
-                ChatMessage thisMessage = new ChatMessage(temp_key, user_name, input_msg.getText().toString(), stamp);
-                messages.add(thisMessage);
                 myChatAdapter.notifyDataSetChanged();
                 listView.setSelection(myChatAdapter.getCount() - 1);
 
@@ -113,6 +101,24 @@ public class ChatRoom extends AppCompatActivity {
 
             }
         });
+    }
+
+    public void newMessage(String msg){
+        temp_key = messagesDB.push().getKey();
+
+        Map<String, Object> map = new HashMap<String, Object>();
+        messagesDB.updateChildren(map);
+        DatabaseReference message_root = messagesDB.child(temp_key);
+        Map<String, Object> map2 = new HashMap<String, Object>();
+        map2.put("name", user_name);
+        map2.put("msg", msg);
+
+        String stamp = Long.toString(System.currentTimeMillis());
+        map2.put("stamp", stamp);
+        message_root.updateChildren(map2);
+        ChatMessage thisMessage = new ChatMessage(temp_key, user_name, msg, stamp);
+        messages.add(thisMessage);
+
     }
 
     private void initiateList() {
@@ -229,10 +235,7 @@ public class ChatRoom extends AppCompatActivity {
 
             TextView time = (TextView) myView.findViewById(R.id.timeStamp);
 
-            long minute = (s.timestamp / (1000 * 60)) % 60;
-            long hour = ((s.timestamp / (1000 * 60 * 60)) % 24) + timeDifference;
-            String msgTime = String.format("%02d:%02d", hour, minute);
-            time.setText(msgTime);
+            time.setText(millisToTime(s.timestamp));
 
             TextView userName = (TextView) myView.findViewById(R.id.userName);
             userName.setText(s.name);

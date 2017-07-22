@@ -32,8 +32,8 @@ public class GroupMember {
         this.name = name;
         this.state = "Normal";
         this.location = new Location("1,53");
-        this.location.setLatitude(1.0);
-        this.location.setLongitude(51.0);
+        this.location.setLatitude(51.5007292);
+        this.location.setLongitude(-0.1268194);
         Log.i("GroupMember created","Lat :" + this.location.getLatitude() + " Lon : " + this.location.getLongitude());
     }
 

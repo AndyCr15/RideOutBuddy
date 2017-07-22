@@ -6,12 +6,14 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
@@ -52,7 +54,6 @@ import static android.util.Log.i;
 import static com.androidandyuk.rideoutbuddy.MainActivity.activeGroup;
 import static com.androidandyuk.rideoutbuddy.MainActivity.checkMembers;
 import static com.androidandyuk.rideoutbuddy.MainActivity.lastKnownLocation;
-import static com.androidandyuk.rideoutbuddy.MainActivity.loadGroupsFromGoogle;
 import static com.androidandyuk.rideoutbuddy.MainActivity.loadSettings;
 import static com.androidandyuk.rideoutbuddy.MainActivity.locationListener;
 import static com.androidandyuk.rideoutbuddy.MainActivity.locationManager;
@@ -62,14 +63,16 @@ import static com.androidandyuk.rideoutbuddy.MainActivity.mapView;
 import static com.androidandyuk.rideoutbuddy.MainActivity.members;
 import static com.androidandyuk.rideoutbuddy.MainActivity.messages;
 import static com.androidandyuk.rideoutbuddy.MainActivity.messagesDB;
+import static com.androidandyuk.rideoutbuddy.MainActivity.millisToTime;
 import static com.androidandyuk.rideoutbuddy.MainActivity.recordingTrip;
 import static com.androidandyuk.rideoutbuddy.MainActivity.removeMemberFromGoogle;
 import static com.androidandyuk.rideoutbuddy.MainActivity.ridersDB;
+import static com.androidandyuk.rideoutbuddy.MainActivity.rootDB;
 import static com.androidandyuk.rideoutbuddy.MainActivity.saveSettings;
+import static com.androidandyuk.rideoutbuddy.MainActivity.saveTrip;
 import static com.androidandyuk.rideoutbuddy.MainActivity.trip;
 import static com.androidandyuk.rideoutbuddy.MainActivity.user;
 import static com.androidandyuk.rideoutbuddy.MainActivity.userMember;
-import static com.androidandyuk.rideoutbuddy.MainActivity.wl;
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
 
@@ -79,6 +82,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private ListView listView2;
     static MyChatAdapter2 myChatAdapter2;
 
+    MyReceiver myReceiver;
+
     private static int viewing;
 
     @Override
@@ -86,7 +91,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
 
-        Log.i("locationUpdatesTime " +locationUpdatesTime,"locationUpdatesDistance " + locationUpdatesDistance);
+        Log.i("locationUpdatesTime " + locationUpdatesTime, "locationUpdatesDistance " + locationUpdatesDistance);
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
@@ -112,9 +117,16 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             }
         });
 
+        checkRecording();
+
+        new ChatRoom().newMessage("**" + userMember.name + " joined the group **");
+
         // this is supposed to start checking GPS as a service, I have no evidence that it does
         // but I keep GPS through a wakelock instead!
-        startService(new Intent(this, MyService.class));
+        Intent intent = new Intent(this, MyService.class);
+        intent.putExtra("Time", locationUpdatesTime);
+        intent.putExtra("Dist", locationUpdatesDistance);
+        startService(intent);
 
     }
 
@@ -135,15 +147,14 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         if (myChatAdapter2.getCount() > 0) {
             listView2.setSelection(myChatAdapter2.getCount() - 1);
         }
-//        checkEmergency();
     }
 
-    public void checkMessages(){
-        Log.i("checkMessages","Called");
+    public void checkMessages() {
+        Log.i("checkMessages", "Called");
         messagesDB.addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(DataSnapshot dataSnapshot) {
-                Log.i("MapsAct checkMessages","onDataChange");
+                Log.i("MapsAct checkMessages", "onDataChange");
                 messages.clear();
                 for (DataSnapshot messagesDS : dataSnapshot.getChildren()) {
                     GenericTypeIndicator<Map<String, String>> genericTypeIndicator = new GenericTypeIndicator<Map<String, String>>() {
@@ -180,14 +191,14 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     public void checkEmergency() {
 
-        Log.i("checkEmergency","messages.size " + messages.size());
+        Log.i("checkEmergency", "messages.size " + messages.size());
 
         for (ChatMessage thisMessage : messages) {
 
             // check for an emergency
             if (thisMessage.message.contains("** EMERGENCY **")) {
 
-                Log.i("checkEmergency","Emergency Found");
+                Log.i("checkEmergency", "Emergency Found");
 
                 Intent intent = new Intent(this, MainActivity.class);
                 PendingIntent pendingIntent = PendingIntent.getActivity(this, 1, intent, 0);
@@ -199,6 +210,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                         .setContentTitle("** EMERGENCY **")
                         .setContentText(text)
                         .setContentIntent(pendingIntent)
+                        .setVibrate(new long[]{1000, 1000, 1000, 1000, 1000})
+                        .setSound(Settings.System.DEFAULT_NOTIFICATION_URI)
                         .setAutoCancel(true)
 //                        .addAction(android.R.drawable.btn_default, "RETURN TO APP", pendingIntent)
                         .build();
@@ -223,6 +236,15 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
     }
 
+    public void checkRecording() {
+        Button recordButton = (Button) findViewById(R.id.recordButton);
+        if (recordingTrip) {
+            recordButton.setText("StopRec");
+        } else {
+            recordButton.setText(" Record ");
+        }
+    }
+
     public void clearTrip(final View view) {
         new AlertDialog.Builder(MapsActivity.this)
                 .setIcon(android.R.drawable.ic_dialog_alert)
@@ -234,6 +256,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                         trip.clear();
                         showRiders(members);
                         centerMapOnUser(view);
+                        saveTrip();
                     }
                 })
                 .setNegativeButton("No", new DialogInterface.OnClickListener() {
@@ -241,7 +264,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     }
                 })
                 .show();
-
 
     }
 
@@ -262,9 +284,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(thisLatLng, 11));
     }
 
-    public String millisToTime(Long millis) {
-        return "tbc";
-    }
 
     public void emergency(View view) {
         Intent intent = new Intent(getApplicationContext(), EmergencyActivity.class);
@@ -313,7 +332,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             TextView message = (TextView) myView.findViewById(R.id.message);
             String thisMessage = s.message;
             message.setText(s.message);
-            if(thisMessage.contains("** EMERGENCY **")){
+            if (thisMessage.contains("** EMERGENCY **")) {
                 message.setTextColor(getResources().getColor(R.color.colorRed));
             }
             return myView;
@@ -334,6 +353,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
 
+        mapView = true;
+
         // zoom in on user's location
         locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
 
@@ -343,7 +364,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
                 Log.i("onLocationChanged", "User has moved");
                 centerMapOnLocation(location);
-                updateLocationGoogle(location, userMember);
+                updateLocationGoogle(location);
 
             }
 
@@ -375,8 +396,15 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
                 lastKnownLocation.setLatitude(1d);
                 lastKnownLocation.setLongitude(50d);
-                lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-                updateLocationGoogle(lastKnownLocation, userMember);
+
+                Location thisLocation = new Location("1, 50");
+                thisLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+
+                if (thisLocation != null) {
+                    lastKnownLocation = thisLocation;
+                }
+
+                updateLocationGoogle(lastKnownLocation);
                 centerMapOnLocation(lastKnownLocation);
 
             } else {
@@ -404,14 +432,14 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, locationUpdatesTime, locationUpdatesDistance, locationListener);
 
                 lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-                updateLocationGoogle(lastKnownLocation, userMember);
+                updateLocationGoogle(lastKnownLocation);
 
                 centerMapOnLocation(lastKnownLocation);
             }
         }
     }
 
-    public void updateLocationGoogle(Location thisLocation, GroupMember user) {
+    public void updateLocationGoogle(Location thisLocation) {
         Log.i("updateLocationGoogle", "thisLocation :" + thisLocation);
         if (thisLocation != null) {
 
@@ -423,13 +451,24 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             String thisLat = Double.toString(thisLocation.getLatitude());
             String thisLon = Double.toString(thisLocation.getLongitude());
             Log.i("thisLat " + thisLat, "thisLon " + thisLon);
-            ridersDB.child(user.ID).child("Lat").setValue(thisLat);
-            ridersDB.child(user.ID).child("Lon").setValue(thisLon);
+            Log.i("user.ID ", " " + userMember.ID);
+            Log.i("ridersDB ", " " + ridersDB.getKey());
+//            ridersDB.child(user.ID).child("Lat").setValue(thisLat);
+//            ridersDB.child(user.ID).child("Lon").setValue(thisLon);
+
+
+            rootDB.child(activeGroup.ID).child("Riders").child(userMember.ID).child("Lat").setValue(thisLat);
+            rootDB.child(activeGroup.ID).child("Riders").child(userMember.ID).child("Lon").setValue(thisLon);
+
 
             // using time for testing purposes, change to milliseconds for actual use
             Calendar now = new GregorianCalendar();
-            String nowString = now.get(Calendar.HOUR_OF_DAY) + ":" + now.get(Calendar.MINUTE);
-            ridersDB.child(user.ID).child("LastUpdate").setValue(nowString);
+            String nowMins = Integer.toString(now.get(Calendar.MINUTE));
+            if (now.get(Calendar.MINUTE) < 10) {
+                nowMins = "0" + nowMins;
+            }
+            String nowString = now.get(Calendar.HOUR_OF_DAY) + ":" + nowMins;
+            ridersDB.child(userMember.ID).child("LastUpdate").setValue(nowString);
 
             centerMapOnLocation(thisLocation);
         }
@@ -444,7 +483,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
             i("Center View on User", "LK Location updated");
             lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-            updateLocationGoogle(lastKnownLocation, userMember);
+            updateLocationGoogle(lastKnownLocation);
             centerMapOnLocation(lastKnownLocation);
         }
     }
@@ -453,47 +492,59 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         LatLng selectedLatLng = new LatLng(location.getLatitude(), location.getLongitude());
 
+        Log.i("centerMapOnLocation", "" + selectedLatLng);
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(selectedLatLng, 17));
 
     }
 
     public static void showRiders(List<GroupMember> members) {
         Log.i("showRiders", "GroupSize :" + members.size());
-        mMap.clear();
-        for (GroupMember thisMember : members) {
-            LatLng memberLatLng = new LatLng(thisMember.location.getLatitude(), thisMember.location.getLongitude());
-            Marker thisMarker = mMap.addMarker(new MarkerOptions()
-                    .position(memberLatLng)
-                    .title(thisMember.name)
-                    .snippet("Status : '" + thisMember.state + "' - Last Update " + thisMember.updated)
-                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_VIOLET)));
+        if (mMap != null) {
+            mMap.clear();
+            for (GroupMember thisMember : members) {
+                LatLng memberLatLng = new LatLng(thisMember.location.getLatitude(), thisMember.location.getLongitude());
+                Marker thisMarker = mMap.addMarker(new MarkerOptions()
+                        .position(memberLatLng)
+                        .title(thisMember.name)
+                        .snippet("Status : '" + thisMember.state + "' - Last Update " + thisMember.updated)
+                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_VIOLET)));
 
-            thisMarker.showInfoWindow();
+                thisMarker.showInfoWindow();
+            }
+            LatLng thisLatLng = new LatLng(lastKnownLocation.getLatitude(), lastKnownLocation.getLongitude());
+            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(thisLatLng, 11));
         }
-        LatLng thisLatLng = new LatLng(lastKnownLocation.getLatitude(), lastKnownLocation.getLongitude());
-        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(thisLatLng, 11));
+    }
+
+    public void goToChat() {
+        Intent intent = new Intent(getApplicationContext(), ChatRoom.class);
+        startActivity(intent);
     }
 
     public void viewPrevious(View view) {
-        viewing--;
-        Log.i("viewPrevious","Viewing " + viewing);
-        if (viewing < 0) {
-            viewing = members.size() - 1;
+        if (members.size() > 0) {
+            viewing--;
+            Log.i("viewPrevious", "Viewing " + viewing);
+            if (viewing < 0) {
+                viewing = members.size() - 1;
+            }
+            showRiders(members);
+            centerMapOnLocation(members.get(viewing).location);
+            updateCurrentView();
         }
-        showRiders(members);
-        centerMapOnLocation(members.get(viewing).location);
-        updateCurrentView();
     }
 
     public void viewNext(View view) {
-        viewing++;
-        Log.i("viewNext","Viewing " + viewing);
-        if (viewing >= members.size()) {
-            viewing = 0;
+        if (members.size() > 0) {
+            viewing++;
+            Log.i("viewNext", "Viewing " + viewing);
+            if (viewing >= members.size()) {
+                viewing = 0;
+            }
+            showRiders(members);
+            centerMapOnLocation(members.get(viewing).location);
+            updateCurrentView();
         }
-        showRiders(members);
-        centerMapOnLocation(members.get(viewing).location);
-        updateCurrentView();
     }
 
     @Override
@@ -512,10 +563,15 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     .setPositiveButton("Leave", new DialogInterface.OnClickListener() {
                         @Override
                         public void onClick(DialogInterface dialog, int which) {
+                            mapView = false;
+                            new ChatRoom().newMessage("** " + userMember.name + " has left the group **");
                             removeMemberFromGoogle(user.getUid(), activeGroup);
                             activeGroup = null;
-                            mapView = false;
-                            wl.release();
+                            saveSettings();
+                            Log.i("LeavingGroup", "activeGroup" + activeGroup);
+                            Intent intent = new Intent(getApplicationContext(), MyService.class);
+                            stopService(intent);
+                            unregisterReceiver(myReceiver);
                             finish();
                         }
                     })
@@ -533,16 +589,19 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     protected void onPause() {
         super.onPause();
         saveSettings();
+        saveTrip();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         loadSettings();
+        checkRecording();
         // if mapView then likely returning from screen off
         if (mapView) {
-            loadGroupsFromGoogle();
+            checkMembers(activeGroup);
             showRiders(members);
+            checkMessages();
             viewing = 0;
             centerMapOnLocation(members.get(viewing).location);
             updateCurrentView();
@@ -551,9 +610,29 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mapView = true;
     }
 
-    public void goToChat() {
-        Intent intent = new Intent(getApplicationContext(), ChatRoom.class);
-        startActivity(intent);
-    }
+//    private class MyReceiver extends BroadcastReceiver {
+//
+//        @Override
+//        public void onReceive(Context arg0, Intent arg1) {
+//
+//            String thisLat = arg1.getStringExtra("Lat");
+//            String thisLon = arg1.getStringExtra("Lon");
+//
+//            Log.i("thisLat(s)" + thisLat,"thisLon(s)" + thisLon);
+//
+//        }
+//
+//    }
 
+    @Override
+    protected void onStart() {
+
+        //Register BroadcastReceiver
+        //to receive event from our service
+        myReceiver = new MyReceiver();
+        IntentFilter intentFilter = new IntentFilter();
+        registerReceiver(myReceiver, intentFilter);
+
+        super.onStart();
+    }
 }
