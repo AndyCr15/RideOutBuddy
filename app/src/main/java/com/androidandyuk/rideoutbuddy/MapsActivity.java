@@ -8,6 +8,7 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -29,36 +30,42 @@ import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.ListView;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
+import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.GenericTypeIndicator;
 import com.google.firebase.database.ValueEventListener;
 
 import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.GregorianCalendar;
 import java.util.List;
 import java.util.Map;
 
 import static android.util.Log.i;
 import static com.androidandyuk.rideoutbuddy.MainActivity.activeGroup;
-import static com.androidandyuk.rideoutbuddy.MainActivity.checkMembers;
+import static com.androidandyuk.rideoutbuddy.MainActivity.database;
+import static com.androidandyuk.rideoutbuddy.MainActivity.geofenceSizeMeters;
 import static com.androidandyuk.rideoutbuddy.MainActivity.lastKnownLocation;
 import static com.androidandyuk.rideoutbuddy.MainActivity.loadSettings;
 import static com.androidandyuk.rideoutbuddy.MainActivity.locationListener;
 import static com.androidandyuk.rideoutbuddy.MainActivity.locationManager;
 import static com.androidandyuk.rideoutbuddy.MainActivity.locationUpdatesDistance;
 import static com.androidandyuk.rideoutbuddy.MainActivity.locationUpdatesTime;
+import static com.androidandyuk.rideoutbuddy.MainActivity.mapType;
 import static com.androidandyuk.rideoutbuddy.MainActivity.mapView;
 import static com.androidandyuk.rideoutbuddy.MainActivity.members;
 import static com.androidandyuk.rideoutbuddy.MainActivity.messages;
@@ -66,21 +73,27 @@ import static com.androidandyuk.rideoutbuddy.MainActivity.messagesDB;
 import static com.androidandyuk.rideoutbuddy.MainActivity.millisToTime;
 import static com.androidandyuk.rideoutbuddy.MainActivity.recordingTrip;
 import static com.androidandyuk.rideoutbuddy.MainActivity.removeMemberFromGoogle;
-import static com.androidandyuk.rideoutbuddy.MainActivity.ridersDB;
 import static com.androidandyuk.rideoutbuddy.MainActivity.rootDB;
 import static com.androidandyuk.rideoutbuddy.MainActivity.saveSettings;
 import static com.androidandyuk.rideoutbuddy.MainActivity.saveTrip;
 import static com.androidandyuk.rideoutbuddy.MainActivity.trip;
+import static com.androidandyuk.rideoutbuddy.MainActivity.tripDB;
 import static com.androidandyuk.rideoutbuddy.MainActivity.user;
+import static com.androidandyuk.rideoutbuddy.MainActivity.userHome;
 import static com.androidandyuk.rideoutbuddy.MainActivity.userMember;
+import static java.lang.Double.parseDouble;
 
-public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
+public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, GoogleMap.OnMapLongClickListener {
 
     private static GoogleMap mMap;
+
+    private static Boolean viewingTrip = false;
 
     TextView currentUser;
     private ListView listView2;
     static MyChatAdapter2 myChatAdapter2;
+
+    public static DatabaseReference ridersDB;
 
     MyReceiver myReceiver;
 
@@ -99,11 +112,14 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         viewing = 0;
 
-        initiateList();
-
         messagesDB = FirebaseDatabase.getInstance().getReference().child(activeGroup.ID).child("Messages");
 
+        //set this to be a new 'last used' for the group
+        rootDB.child(activeGroup.ID).child("Details").child("LastUsed").setValue(Long.toString(System.currentTimeMillis()));
+
         checkMessages();
+        initiateList();
+
         if (myChatAdapter2.getCount() > 0) {
             listView2.setSelection(myChatAdapter2.getCount() - 1);
         }
@@ -267,23 +283,91 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     }
 
-    public void viewTrip(View view) {
-        Log.i("viewTrip", "Locations :" + trip.size());
-        mMap.clear();
-        for (TripMarker thisLocation : trip) {
-            Log.i("Marking", "" + thisLocation);
-            LatLng thisLatLng = new LatLng(thisLocation.location.getLatitude(), thisLocation.location.getLongitude());
-            Marker thisMarker = mMap.addMarker(new MarkerOptions()
-                    .position(thisLatLng)
-                    .title(millisToTime(thisLocation.timeStamp))
-                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE)));
+    public static void checkMembers(RideOutGroup thisGroup) {
+        ridersDB = database.getReference().child(thisGroup.ID).child("Riders");
+        Log.i("checkMembers", "ridersDB.getKey " + ridersDB.getKey());
+        ridersDB.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                Log.i("MapsAct checkRiders", "onDataChange");
+                members.clear();
+                for (DataSnapshot riderDS : dataSnapshot.getChildren()) {
+                    // check all the rider data has been added to Google
+                    if (riderDS.getChildrenCount() == 5) {
+                        GenericTypeIndicator<Map<String, String>> genericTypeIndicator = new GenericTypeIndicator<Map<String, String>>() {
+                        };
 
-            thisMarker.showInfoWindow();
-        }
-        LatLng thisLatLng = new LatLng(lastKnownLocation.getLatitude(), lastKnownLocation.getLongitude());
-        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(thisLatLng, 11));
+                        Map<String, String> map = null;
+                        map = riderDS.getValue(genericTypeIndicator);
+                        Log.i("riderDS.getKey", "" + riderDS.getKey());
+
+                        String riderName = map.get("riderName");
+                        String riderState = map.get("riderState");
+                        String riderLat = map.get("Lat");
+                        String riderLon = map.get("Lon");
+                        String riderUpdated = map.get("LastUpdate");
+
+                        Log.i("Name " + riderName, "State " + riderState);
+                        Log.i("googleLat" + parseDouble(riderLat), "googleLon" + parseDouble(riderLon));
+                        Location riderLocation = new Location("1,20");
+                        riderLocation.setLatitude(parseDouble(riderLat));
+                        riderLocation.setLongitude(parseDouble(riderLon));
+
+                        GroupMember newRider = new GroupMember(riderDS.getKey(), riderName, riderLocation, riderState, riderUpdated);
+
+                        members.add(newRider);
+                        Log.i("Adding newRider" + newRider, "members.size " + members.size());
+                    }
+                }
+//                myAdapter.notifyDataSetChanged();
+                if (mapView) {
+                    Log.i("Updated Data", "You're in MapView");
+                    showRiders(members);
+                }
+            }
+
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+                Log.i("checkMembers", "onCancelled");
+            }
+        });
     }
 
+    public void viewTrip(View view) {
+        Log.i("viewTrip", "Locations :" + trip.size());
+        if (trip.size() > 1) {
+            viewingTrip = true;
+            mMap.clear();
+            drawHome();
+
+            LatLngBounds.Builder builder = new LatLngBounds.Builder();
+
+
+            for(int i = 1; i < trip.size(); i++){
+
+                LatLng first = new LatLng(trip.get(i-1).location.getLatitude(), trip.get(i-1).location.getLongitude());
+                LatLng second = new LatLng(trip.get(i).location.getLatitude(), trip.get(i).location.getLongitude());
+
+                builder.include(second);
+
+                mMap.addPolyline(new PolylineOptions()
+                        .add(first,second)
+                        .width(15)
+                        .color(Color.GRAY)
+                        .geodesic(true));
+            }
+
+            LatLngBounds bounds = builder.build();
+
+            int padding = 50; // offset from edges of the map in pixels
+            CameraUpdate cu = CameraUpdateFactory.newLatLngBounds(bounds, padding);
+
+            mMap.animateCamera(cu);
+
+//        LatLng thisLatLng = new LatLng(lastKnownLocation.getLatitude(), lastKnownLocation.getLongitude());
+//        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(thisLatLng, 12));
+        }
+    }
 
     public void emergency(View view) {
         Intent intent = new Intent(getApplicationContext(), EmergencyActivity.class);
@@ -353,6 +437,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
 
+        mMap.setOnMapLongClickListener(this);
+
         mapView = true;
 
         // zoom in on user's location
@@ -363,7 +449,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             public void onLocationChanged(Location location) {
 
                 Log.i("onLocationChanged", "User has moved");
-                centerMapOnLocation(location);
+//                centerMapOnLocation(location);
                 updateLocationGoogle(location);
 
             }
@@ -416,9 +502,39 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
 
         checkMembers(activeGroup);
-//        showRiders(members); // happens in checkMembers anyway
         updateCurrentView();
 
+        switch (mapType) {
+            case "Normal":
+                mMap.setMapType(GoogleMap.MAP_TYPE_NORMAL);
+                return;
+            case "Hybrid":
+                mMap.setMapType(GoogleMap.MAP_TYPE_HYBRID);
+                return;
+            case "Satellite":
+                mMap.setMapType(GoogleMap.MAP_TYPE_SATELLITE);
+                return;
+            case "Terrain":
+                mMap.setMapType(GoogleMap.MAP_TYPE_TERRAIN);
+                return;
+        }
+
+    }
+
+    @Override
+    public void onMapLongClick(LatLng latLng) {
+        Log.i("onMapLongClick", "LatLng" + latLng);
+
+        userHome.setLatitude(latLng.latitude);
+        userHome.setLongitude(latLng.longitude);
+
+        saveSettings();
+
+        mMap.clear();
+        showRiders(members);
+        drawHome();
+
+        Toast.makeText(this, "Home Location Set. Leave and rejoin to remove your position if you're home now.", Toast.LENGTH_LONG).show();
     }
 
     @Override
@@ -446,36 +562,75 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             if (recordingTrip) {
                 TripMarker thisTrip = new TripMarker(thisLocation);
                 trip.add(thisTrip);
+
+                //save it direct into the database
+                tripDB.execSQL("CREATE TABLE IF NOT EXISTS trip (lat VARCHAR, lon VARCHAR, time VARCHAR)");
+
+                // change into String to be saved to the DB
+                String thisLat = Double.toString(thisTrip.location.getLatitude());
+                String thisLon = Double.toString(thisTrip.location.getLongitude());
+                String thisTime = Long.toString(thisTrip.timeStamp);
+
+                tripDB.execSQL("INSERT INTO trip (lat, lon, time) VALUES ('" + thisLat + "' , '" + thisLon + "' , '" + thisTime + "')");
+
+
             }
 
-            String thisLat = Double.toString(thisLocation.getLatitude());
-            String thisLon = Double.toString(thisLocation.getLongitude());
-            Log.i("thisLat " + thisLat, "thisLon " + thisLon);
-            Log.i("user.ID ", " " + userMember.ID);
-            Log.i("ridersDB ", " " + ridersDB.getKey());
-//            ridersDB.child(user.ID).child("Lat").setValue(thisLat);
-//            ridersDB.child(user.ID).child("Lon").setValue(thisLon);
+            // check distance from home, only procede if greater than selected meters
+            if (distanceFromHome(thisLocation) > geofenceSizeMeters) {
+                String thisLat = Double.toString(thisLocation.getLatitude());
+                String thisLon = Double.toString(thisLocation.getLongitude());
+                try {
+                    Log.i("thisLat " + thisLat, "thisLon " + thisLon);
+                    Log.i("user.ID ", " " + userMember.ID);
 
+                    rootDB.child(activeGroup.ID).child("Riders").child(userMember.ID).child("Lat").setValue(thisLat);
+                    rootDB.child(activeGroup.ID).child("Riders").child(userMember.ID).child("Lon").setValue(thisLon);
 
-            rootDB.child(activeGroup.ID).child("Riders").child(userMember.ID).child("Lat").setValue(thisLat);
-            rootDB.child(activeGroup.ID).child("Riders").child(userMember.ID).child("Lon").setValue(thisLon);
+                    Long nowMillis = System.currentTimeMillis();
+                    String nowString = millisToTime(nowMillis);
+                    nowString = nowString.substring(0, nowString.length() - 3);
 
-
-            // using time for testing purposes, change to milliseconds for actual use
-            Calendar now = new GregorianCalendar();
-            String nowMins = Integer.toString(now.get(Calendar.MINUTE));
-            if (now.get(Calendar.MINUTE) < 10) {
-                nowMins = "0" + nowMins;
+                    rootDB.child(activeGroup.ID).child("Riders").child(userMember.ID).child("LastUpdate").setValue(nowString);
+                } catch (Exception e) {
+                    Log.e("updateLocationGoogle", "Error Getting Location");
+                    e.printStackTrace();
+                }
+            } else {
+                Log.i("Location Not Updated", "Within Home Geofence");
             }
-            String nowString = now.get(Calendar.HOUR_OF_DAY) + ":" + nowMins;
-            ridersDB.child(userMember.ID).child("LastUpdate").setValue(nowString);
-
-            centerMapOnLocation(thisLocation);
+//            centerMapOnLocation(thisLocation);
         }
+    }
+
+    public double distanceFromHome(Location o) {
+        Log.i("distanceFromHome", "Location " + o);
+        Log.i("HomeLocation", "Location " + userHome);
+
+        if (o != null) {
+            double lat1 = userHome.getLatitude();
+            double lng1 = userHome.getLongitude();
+            double lat2 = o.getLatitude();
+            double lng2 = o.getLongitude();
+
+            int r = 6371; // average radius of the earth in km
+            double dLat = Math.toRadians(lat2 - lat1);
+            double dLon = Math.toRadians(lng2 - lng1);
+            double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                    Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                            * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            double d = (r * c) * 1000;
+            Log.i("distanceFromHome", "Distance " + d);
+            return d;
+        }
+        return 0;
     }
 
     public void centerMapOnUser(View view) {
         i("centerMapOnUser", "called");
+
+        viewingTrip = false;
 
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
 
@@ -491,28 +646,63 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     public void centerMapOnLocation(Location location) {
 
         LatLng selectedLatLng = new LatLng(location.getLatitude(), location.getLongitude());
+        if (selectedLatLng.latitude != 0 && selectedLatLng.longitude != 0) {
+            Log.i("centerMapOnLocation", "" + selectedLatLng);
 
-        Log.i("centerMapOnLocation", "" + selectedLatLng);
-        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(selectedLatLng, 17));
+            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(selectedLatLng, 15));
+        } else {
+            Toast.makeText(this, "User within home geolocation, location hidden", Toast.LENGTH_LONG).show();
+        }
+    }
 
+    public void viewOtherRider(Location location) {
+
+        LatLng selectedLatLng = new LatLng(location.getLatitude(), location.getLongitude());
+        if (selectedLatLng.latitude != 0 && selectedLatLng.longitude != 0) {
+            Log.i("centerMapOnLocation", "" + selectedLatLng);
+
+            try {
+                LatLngBounds.Builder builder = new LatLngBounds.Builder();
+                LatLng userLocation = new LatLng(lastKnownLocation.getLatitude(), lastKnownLocation.getLongitude());
+                builder.include(selectedLatLng);
+                builder.include(userLocation);
+                Log.i("centerMapOnLocation", "U " + userLocation + "T " + selectedLatLng);
+                LatLngBounds bounds = builder.build();
+                int padding = 400;
+                CameraUpdate cu = CameraUpdateFactory.newLatLngBounds(bounds, padding);
+                mMap.animateCamera(cu);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+//            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(selectedLatLng, 15));
+        } else {
+            Toast.makeText(this, "User within home geolocation, location hidden", Toast.LENGTH_LONG).show();
+        }
     }
 
     public static void showRiders(List<GroupMember> members) {
-        Log.i("showRiders", "GroupSize :" + members.size());
-        if (mMap != null) {
+
+        if (mMap != null && !viewingTrip) {
+            Log.i("showRiders", "GroupSize :" + members.size());
             mMap.clear();
+            drawHome();
             for (GroupMember thisMember : members) {
                 LatLng memberLatLng = new LatLng(thisMember.location.getLatitude(), thisMember.location.getLongitude());
-                Marker thisMarker = mMap.addMarker(new MarkerOptions()
-                        .position(memberLatLng)
-                        .title(thisMember.name)
-                        .snippet("Status : '" + thisMember.state + "' - Last Update " + thisMember.updated)
-                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_VIOLET)));
-
-                thisMarker.showInfoWindow();
+                Log.i("memberLatLng", "" + memberLatLng);
+                if (memberLatLng.latitude != 0 && memberLatLng.longitude != 0) {
+                    Marker thisMarker = mMap.addMarker(new MarkerOptions()
+                            .position(memberLatLng)
+                            .title(thisMember.name)
+                            .snippet("Status : '" + thisMember.state + "' - Last Update " + thisMember.updated)
+                            .icon(BitmapDescriptorFactory.fromResource(R.drawable.bike_icon)));
+                    thisMarker.showInfoWindow();
+                }
+//                LatLng thisLatLng = new LatLng(lastKnownLocation.getLatitude(), lastKnownLocation.getLongitude());
+//                mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(thisLatLng, 10));
             }
-            LatLng thisLatLng = new LatLng(lastKnownLocation.getLatitude(), lastKnownLocation.getLongitude());
-            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(thisLatLng, 11));
+        } else {
+            Log.i("showRiders", "mMap null");
         }
     }
 
@@ -522,6 +712,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
     public void viewPrevious(View view) {
+        viewingTrip = false;
         if (members.size() > 0) {
             viewing--;
             Log.i("viewPrevious", "Viewing " + viewing);
@@ -529,12 +720,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 viewing = members.size() - 1;
             }
             showRiders(members);
-            centerMapOnLocation(members.get(viewing).location);
+            viewOtherRider(members.get(viewing).location);
             updateCurrentView();
         }
     }
 
     public void viewNext(View view) {
+        viewingTrip = false;
         if (members.size() > 0) {
             viewing++;
             Log.i("viewNext", "Viewing " + viewing);
@@ -542,9 +734,18 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 viewing = 0;
             }
             showRiders(members);
-            centerMapOnLocation(members.get(viewing).location);
+            viewOtherRider(members.get(viewing).location);
             updateCurrentView();
         }
+    }
+
+    public static void drawHome(){
+        LatLng home = new LatLng(userHome.getLatitude(),userHome.getLongitude());
+        mMap.addCircle(new CircleOptions()
+                .center(home)
+                .radius(geofenceSizeMeters)
+                .strokeColor(Color.LTGRAY)
+                .fillColor(Color.LTGRAY));
     }
 
     @Override
@@ -563,6 +764,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     .setPositiveButton("Leave", new DialogInterface.OnClickListener() {
                         @Override
                         public void onClick(DialogInterface dialog, int which) {
+
+                            //set this to be a new 'last used' for the group
+                            rootDB.child(activeGroup.ID).child("Details").child("LastUsed").setValue(Long.toString(System.currentTimeMillis()));
+
                             mapView = false;
                             new ChatRoom().newMessage("** " + userMember.name + " has left the group **");
                             removeMemberFromGoogle(user.getUid(), activeGroup);
@@ -589,7 +794,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     protected void onPause() {
         super.onPause();
         saveSettings();
-        saveTrip();
+//        saveTrip();
     }
 
     @Override

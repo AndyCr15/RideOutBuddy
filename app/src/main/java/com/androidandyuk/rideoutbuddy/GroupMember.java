@@ -20,6 +20,32 @@ enum GPSrateEnum {
     }
 }
 
+enum MapTypeEnum {
+    Normal(1), Hybrid(2),Satellite(3),Terrain(4);
+    private final int value;
+
+    private MapTypeEnum(int value) {
+        this.value = value;
+    }
+
+    public int getValue() {
+        return value;
+    }
+}
+
+enum GeofenceEnum {
+    Large(3), Med(2),Small(1);
+    private final int value;
+
+    private GeofenceEnum(int value) {
+        this.value = value;
+    }
+
+    public int getValue() {
+        return value;
+    }
+}
+
 public class GroupMember {
     String ID;
     String name;
@@ -32,8 +58,8 @@ public class GroupMember {
         this.name = name;
         this.state = "Normal";
         this.location = new Location("1,53");
-        this.location.setLatitude(51.5007292);
-        this.location.setLongitude(-0.1268194);
+        this.location.setLatitude(0);
+        this.location.setLongitude(0);
         Log.i("GroupMember created","Lat :" + this.location.getLatitude() + " Lon : " + this.location.getLongitude());
     }
 

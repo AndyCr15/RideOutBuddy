@@ -35,7 +35,7 @@
         -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="@string/google_maps_key" />
+            android:value="AIzaSyA9p9y6vhT8a_emxxgeM6-_-_RMEu9fSCM" />
 
         <activity
             android:name=".MapsActivity"
@@ -50,10 +50,11 @@
             android:enabled="true"
             android:exported="true">
             <intent-filter>
-                <action android:name="com.androidandyuk.rideoutbuddy">
-                </action>
+                <action android:name="com.androidandyuk.rideoutbuddy"></action>
             </intent-filter>
         </receiver>
+
+        <activity android:name=".Settings"></activity>
     </application>
 
 </manifest>

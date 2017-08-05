@@ -32,8 +32,10 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:onClick="goToChat"
-        android:orientation="vertical">
+        android:orientation="vertical"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentStart="true">
 
         <Button
             android:id="@+id/emergencyButton"
@@ -102,7 +104,7 @@
             android:layout_weight="1"
             android:alpha="0.9"
             android:background="@drawable/rounded_corners"
-            android:text="TextView"
+            android:text="Rider info will be here. Press Next."
             android:textAlignment="center"
             android:textColor="@android:color/white" />
 

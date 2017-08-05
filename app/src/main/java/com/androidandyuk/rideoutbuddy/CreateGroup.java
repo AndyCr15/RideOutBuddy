@@ -1,5 +1,6 @@
 package com.androidandyuk.rideoutbuddy;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
@@ -62,17 +63,16 @@ public class CreateGroup extends AppCompatActivity {
         DatabaseReference message_root = messagesDB.child(temp_key);
         Map<String, Object> map2 = new HashMap<String, Object>();
         map2.put("name", user.getDisplayName());
-        map2.put("msg", "Welcome to my group. Come say hello!");
+        map2.put("msg", "Welcome to " + groupName.getText().toString() + " group. Tap here to join chat!");
         String stamp = Long.toString(System.currentTimeMillis());
         map2.put("stamp", stamp);
         message_root.updateChildren(map2);
-        ChatMessage thisMessage = new ChatMessage(temp_key, user.getDisplayName(), "Welcome to my group. Come say hello!", stamp);
+        ChatMessage thisMessage = new ChatMessage(temp_key, user.getDisplayName(), "Welcome to " + groupName.getText().toString() + " group. Tap here to join chat!", stamp);
         messages.add(thisMessage);
-
-        finish();
+        addMemberToGoogle(userMember, activeGroup);
+        Intent intent = new Intent(getApplicationContext(), MapsActivity.class);
+        startActivity(intent);
     }
-
-
 
 
 }

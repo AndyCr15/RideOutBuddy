@@ -101,7 +101,7 @@ public class MyService extends Service
         initializeLocationManager();
         try {
             mLocationManager.requestLocationUpdates(
-                    LocationManager.NETWORK_PROVIDER, gpsTime, gpsDist,
+                    LocationManager.NETWORK_PROVIDER, 60000, 500,
                     mLocationListeners[1]);
         } catch (java.lang.SecurityException ex) {
             Log.i(TAG, "fail to request location update, ignore", ex);
@@ -110,7 +110,7 @@ public class MyService extends Service
         }
         try {
             mLocationManager.requestLocationUpdates(
-                    LocationManager.GPS_PROVIDER, gpsTime, gpsDist,
+                    LocationManager.GPS_PROVIDER, 60000, 500,
                     mLocationListeners[0]);
         } catch (java.lang.SecurityException ex) {
             Log.i(TAG, "fail to request location update, ignore", ex);

@@ -3,7 +3,8 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_margin="5dp"
-    android:gravity="center_vertical">
+    android:gravity="center_vertical"
+    android:padding="4dp">
 
     <TextView
         android:id="@+id/groupName"
@@ -12,7 +13,7 @@
         android:layout_marginLeft="4dp"
         android:layout_weight="1"
         android:text="Name"
-        android:textColor="@android:color/black"
+        android:textColor="@android:color/white"
         android:textSize="30sp" />
 
     <LinearLayout

@@ -1,13 +1,19 @@
 package com.androidandyuk.rideoutbuddy;
 
+import android.app.Notification;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.PowerManager;
 import android.support.annotation.NonNull;
@@ -21,11 +27,9 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
 import android.widget.BaseAdapter;
 import android.widget.EditText;
 import android.widget.ListView;
-import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -50,13 +54,21 @@ import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.GenericTypeIndicator;
 import com.google.firebase.database.ValueEventListener;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.BufferedInputStream;
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.GregorianCalendar;
 import java.util.Map;
-
-import static java.lang.Double.parseDouble;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -75,17 +87,26 @@ public class MainActivity extends AppCompatActivity {
 
     public static RideOutGroup activeGroup;
     public static GroupMember userMember;
+    public static Location userHome = new Location("0, 0");
 
     public static LocationManager locationManager;
     public static LocationListener locationListener;
-    public static int locationUpdatesTime = 5000;
-    public static int locationUpdatesDistance = 1;
+    public static int locationUpdatesTime = 40000;
+    public static int locationUpdatesDistance = 100;
+    public static int geofenceSizeMeters = 400;
     public static Location lastKnownLocation;
+    public static int groupListMethod = 1;
     public static Boolean mapView = false;
+
+    public static String mapType = "Normal";
+    public static String GPSrate = "Med";
+    public static String geofenceSize = "Med";
 
     public static SimpleDateFormat sdf = new SimpleDateFormat("dd/MMM/yyyy");
     public static SimpleDateFormat dayOfWeek = new SimpleDateFormat("EEEE");
     public static int timeDifference;
+
+    public static String jsonLocation = "http://www.lanarchy.co.uk/";
 
     public static ArrayList<RideOutGroup> groups;
     public static ArrayList<GroupMember> members;
@@ -94,27 +115,32 @@ public class MainActivity extends AppCompatActivity {
 
     public static SQLiteDatabase tripDB;
     public static DatabaseReference messagesDB;
-    public static DatabaseReference ridersDB;
+
+    public static String devVersion;
+    public static String devRelease;
+    public static String devComment;
+    public static String devURL;
+    public static String appVersion;
 
     public static PowerManager pm;
 //    public static PowerManager.WakeLock wl;
 
     public static Boolean recordingTrip = false;
 
+    private static ValueEventListener groupListener;
+
     static MyGroupAdapter myAdapter;
     ListView listView;
     View passwordView;
-    Spinner spinnerGPSrate;
-    public static SimpleDateFormat dateTimeFormatter = new SimpleDateFormat("dd/MM HH:mm:ss");
 
-    public static String GPSrate = "Med";
+    public static SimpleDateFormat dateTimeFormatter = new SimpleDateFormat("dd/MM HH:mm:ss");
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        Log.i("MainActivity","onCreate");
+        Log.i("MainActivity", "onCreate");
 
         mFirebaseAnalytics = FirebaseAnalytics.getInstance(this);
         mAuth = FirebaseAuth.getInstance();
@@ -140,10 +166,18 @@ public class MainActivity extends AppCompatActivity {
 
         lastKnownLocation = new Location("1,50");
 
-        spinnerGPSrate = (Spinner) findViewById(R.id.spinnerGPS);
-        spinnerGPSrate.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, GPSrateEnum.values()));
-
         passwordView = findViewById(R.id.passwordView);
+
+        TextView versionInfoTV = (TextView) findViewById(R.id.versionInfoTV);
+        appVersion = "tbc";
+        try {
+            PackageInfo pInfo = this.getPackageManager().getPackageInfo(getPackageName(), 0);
+            appVersion = pInfo.versionName;
+        } catch (PackageManager.NameNotFoundException e) {
+            e.printStackTrace();
+        }
+        versionInfoTV.setText("Version :" + appVersion + " (Go to Settings to check this is the latest)");
+
 
         // attempt to find the difference of now to GMT
         Calendar now = new GregorianCalendar();
@@ -190,16 +224,68 @@ public class MainActivity extends AppCompatActivity {
             signIn();
         }
 
+        groupListener = (new ValueEventListener() {
+
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+
+                if(!mapView) {
+                    Log.i("ValueEventListener", "Count :" + dataSnapshot.getChildrenCount());
+                    groups.clear();
+
+                    for (final DataSnapshot groupDS : dataSnapshot.getChildren()) {
+                        Log.i("DataSnapshot groupDS", "" + groupDS);
+
+
+
+                        for (DataSnapshot detailsDS : groupDS.getChildren()) {
+
+                            if (detailsDS.getKey().equals("Details")) {
+                                Log.i("detailsDS", "" + detailsDS);
+                                if (detailsDS.getChildrenCount() == 6) {
+                                    GenericTypeIndicator<Map<String, String>> genericTypeIndicator = new GenericTypeIndicator<Map<String, String>>() {
+                                    };
+
+                                    Map<String, String> map = null;
+                                    map = detailsDS.getValue(genericTypeIndicator);
+
+                                    String name = map.get("Name");
+                                    String password = map.get("Password");
+                                    String ID = map.get("ID");
+                                    String count = map.get("RiderCount");
+                                    Long created = Long.parseLong(map.get("Created"));
+                                    Long lastUsed = Long.parseLong(map.get("LastUsed"));
+
+                                    if((lastUsed + 604800000) > System.currentTimeMillis()) {
+                                        rootDB.child(groupDS.getKey()).child("Details").child("RiderCount").setValue(Long.toString(dataSnapshot.child(groupDS.getKey()).child("Riders").getChildrenCount()));
+                                        RideOutGroup newGroup = new RideOutGroup(ID, name, password, count, created, lastUsed);
+                                        groups.add(newGroup);
+                                        myAdapter.notifyDataSetChanged();
+                                    } else {
+                                        //remove group
+                                        rootDB.child(ID).removeValue();
+                                        Log.i("Removing Old Group", ID);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    loadSettings();
+                    initiateList();
+                }
+            }
+
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+
+            }
+        });
+
         loadGroupsFromGoogle();
+
         initiateList();
         loadSettings();
         loadTrip();
-        setSpinner();
-
-//        if(mapView && activeGroup != null){
-//            Intent intent = new Intent(getApplicationContext(), MapsActivity.class);
-//            startActivity(intent);
-//        }
 
         listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
 
@@ -214,86 +300,121 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        new MyAsyncTaskgetNews().execute(jsonLocation + "devnotes.json");
+
     }
 
-    private void setSpinner() {
-        Log.i("SettingSpinner GPSrate", GPSrate);
-        switch (GPSrate) {
-            case "High":
-                spinnerGPSrate.setSelection(0);
-                break;
-            case "Med":
-                spinnerGPSrate.setSelection(1);
-                break;
-            case "Low":
-                spinnerGPSrate.setSelection(2);
-                break;
+    public boolean checkUpdate() {
+
+        Log.i("App " + appVersion, "Dev " + devVersion);
+        if (!appVersion.equals(devVersion) && devVersion != null) {
+            Toast.makeText(this, "Update your app! Go to Settings", Toast.LENGTH_SHORT).show();
+
+            Intent intent = new Intent(getApplicationContext(),Settings.class);
+            PendingIntent pendingIntent = PendingIntent.getActivity(getApplicationContext(), 1, intent, 0);
+
+            Notification notification = new Notification.Builder(getApplicationContext())
+                    .setContentTitle("Update Ride Out Buddy!")
+                    .setContentText("There's a new Alpha version of Ride Out Buddy. Update in the Settings page.")
+                    .setContentIntent(pendingIntent)
+                    .addAction(android.R.drawable.btn_default, "GO TO SETTINGS", pendingIntent)
+                    .setSmallIcon(R.drawable.ic_stat_name)
+                    .setAutoCancel(true)
+                    .build();
+
+            NotificationManager notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+
+            notificationManager.notify(1, notification);
+
+            return true;
         }
+        return false;
+    }
+
+    public void versionCheck(View view) {
+        Intent intent = new Intent(getApplicationContext(), Settings.class);
+        startActivity(intent);
     }
 
     public void checkPassword() {
-        Log.i("checkPassword", "thisGroup.riderCount " + Integer.parseInt(activeGroup.riderCount));
 
         Log.i("checkPassword", "members.size() " + members.size());
-        Boolean alreadyInGroup = false;
-        for (GroupMember thisMember : members) {
-            Log.i("thisMember.ID " + thisMember.ID, "user.getUid() " + user.getUid());
-            if (thisMember.ID.equals(user.getUid())) {
-                Log.i("checkPassword", "Already in Group");
-                alreadyInGroup = true;
-            }
-        }
 
-        if (!alreadyInGroup) {
+        passwordView.setVisibility(View.VISIBLE);
 
-            passwordView.setVisibility(View.VISIBLE);
+        InputMethodManager inputMethodManager = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        inputMethodManager.toggleSoftInputFromWindow(passwordView.getApplicationWindowToken(), InputMethodManager.SHOW_FORCED, 0);
 
-            InputMethodManager inputMethodManager = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-            inputMethodManager.toggleSoftInputFromWindow(passwordView.getApplicationWindowToken(), InputMethodManager.SHOW_FORCED, 0);
+        final EditText password = (EditText) findViewById(R.id.groupPassword);
 
-            final EditText password = (EditText) findViewById(R.id.groupPassword);
+        password.setFocusableInTouchMode(true);
+        password.requestFocus();
 
-            password.setFocusableInTouchMode(true);
-            password.requestFocus();
-
-            password.setOnKeyListener(new View.OnKeyListener() {
-                public boolean onKey(View v, int keyCode, KeyEvent event) {
-                    // If the event is a key-down event on the "enter" button
-                    if ((event.getAction() == KeyEvent.ACTION_DOWN) &&
-                            (keyCode == KeyEvent.KEYCODE_ENTER)) {
-                        // Perform action on key press
-                        String thisPassword = password.getText().toString();
-                        if (thisPassword.equals(activeGroup.password)) {
-//                            wl.acquire();
-                            password.setText("");
-                            passwordView.setVisibility(View.INVISIBLE);
-                            addMemberToGoogle(userMember, activeGroup);
-                            Intent intent = new Intent(getApplicationContext(), MapsActivity.class);
-                            startActivity(intent);
-                        } else {
-                            Toast.makeText(MainActivity.this, "Incorrect password", Toast.LENGTH_LONG).show();
-                            password.setText("");
-                            activeGroup = null;
-                            passwordView.setVisibility(View.INVISIBLE);
-                        }
-                        return true;
+        password.setOnKeyListener(new View.OnKeyListener() {
+            public boolean onKey(View v, int keyCode, KeyEvent event) {
+                // If the event is a key-down event on the "enter" button
+                if ((event.getAction() == KeyEvent.ACTION_DOWN) &&
+                        (keyCode == KeyEvent.KEYCODE_ENTER)) {
+                    // Perform action on key press
+                    String thisPassword = password.getText().toString();
+                    Log.i("checkPassword", thisPassword);
+                    if (thisPassword.equals(activeGroup.password)) {
+                        Log.i("checkPassword", "Correct");
+                        password.setText("");
+                        passwordView.setVisibility(View.INVISIBLE);
+                        addMemberToGoogle(userMember, activeGroup);
+                        rootDB.removeEventListener(groupListener);
+                        Intent intent = new Intent(getApplicationContext(), MapsActivity.class);
+                        startActivity(intent);
+                        Log.i("MainActivity", "Calling finish()");
+                    } else {
+                        Toast.makeText(MainActivity.this, "Incorrect password", Toast.LENGTH_LONG).show();
+                        password.setText("");
+                        activeGroup = null;
+                        passwordView.setVisibility(View.INVISIBLE);
                     }
-                    return false;
+                    return true;
                 }
-            });
-        } else {
-//            wl.acquire();
-            passwordView.setVisibility(View.INVISIBLE);
-            addMemberToGoogle(userMember, activeGroup);
-            Intent intent = new Intent(getApplicationContext(), MapsActivity.class);
-            startActivity(intent);
-        }
+                return false;
+            }
+        });
     }
 
     public void createGroupClicked(View view) {
         Log.i("createGroupClicked", "Started");
         Intent intent = new Intent(getApplicationContext(), CreateGroup.class);
         startActivity(intent);
+    }
+
+    public void changeListedBy(View view){
+        groupListMethod += 1;
+        if(groupListMethod>3){
+            groupListMethod = 1;
+        }
+
+        updateSortedBy();
+
+    }
+
+    private void updateSortedBy() {
+        TextView listedByTV = (TextView)findViewById(R.id.listedByTV);
+        switch(groupListMethod){
+            case 1:
+                listedByTV.setText("Sorted Alphabetically");
+                initiateList();
+                return;
+            case 2:
+                listedByTV.setText("Sorted Reverse Alphabetically");
+                initiateList();
+                return;
+            case 3:
+                listedByTV.setText("Sorted Most Recently Used");
+                initiateList();
+                return;
+        }
+
+
+
     }
 
     private class MyGroupAdapter extends BaseAdapter {
@@ -334,7 +455,7 @@ public class MainActivity extends AppCompatActivity {
 
             TextView created = (TextView) myView.findViewById(R.id.createdTV);
             Log.i("s.created", "" + s.created);
-            created.setText("Created :" + millisToTime(s.created));
+            created.setText("Last Used :" + millisToTime(s.lastUsed));
 
             return myView;
         }
@@ -346,12 +467,98 @@ public class MainActivity extends AppCompatActivity {
         listView = (ListView) findViewById(R.id.groupsListView);
         myAdapter = new MyGroupAdapter(groups);
         listView.setAdapter(myAdapter);
+        Collections.sort(groups);
+        myAdapter.notifyDataSetChanged();
     }
 
     public static String millisToTime(Long millis) {
         Calendar calendar = Calendar.getInstance();
         calendar.setTimeInMillis(millis);
         return dateTimeFormatter.format(calendar.getTime());
+    }
+
+    // get news from server
+    public class MyAsyncTaskgetNews extends AsyncTask<String, String, String> {
+        @Override
+        protected void onPreExecute() {
+            //before works
+        }
+
+        @Override
+        protected String doInBackground(String... params) {
+            try {
+                Log.i("Car Shows", "doInBackground");
+                String NewsData;
+                //define the url we have to connect with
+                URL url = new URL(params[0]);
+                //make connect with url and send request
+                HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
+                //waiting for 7000ms for response
+                urlConnection.setConnectTimeout(15000);//set timeout to 15 seconds
+
+                try {
+                    //getting the response data
+                    InputStream in = new BufferedInputStream(urlConnection.getInputStream());
+                    //convert the stream to string
+                    NewsData = ConvertInputToStringNoChange(in);
+                    //send to display data
+                    publishProgress(NewsData);
+                } finally {
+                    //end connection
+                    urlConnection.disconnect();
+                }
+
+            } catch (Exception ex) {
+                Log.i("Exception Caught ", "" + ex);
+            }
+            return null;
+        }
+
+        protected void onProgressUpdate(String... progress) {
+            try {
+                Log.i("Car Shows", "Getting JSON");
+                JSONArray json = new JSONArray(progress[0]);
+                Log.i("JSON size", "" + json.length());
+
+//                for (int i = 0; i < json.length(); i++) {
+                JSONObject notes = json.getJSONObject(0);
+                devVersion = notes.getString("version");
+                devRelease = notes.getString("release");
+                devComment = notes.getString("comment");
+                devURL = notes.getString("url");
+                Log.i("Adding notes ", devVersion);
+//                }
+            } catch (Exception ex) {
+                Log.i("JSON failed", "" + ex);
+            }
+        }
+
+        protected void onPostExecute(String result2) {
+            checkUpdate();
+        }
+
+    }
+
+    // this method convert any stream to string
+    public static String ConvertInputToStringNoChange(InputStream inputStream) {
+
+        BufferedReader bureader = new BufferedReader(new InputStreamReader(inputStream));
+        String line;
+        String linereultcal = "";
+
+        try {
+            while ((line = bureader.readLine()) != null) {
+
+                linereultcal += line;
+
+            }
+            inputStream.close();
+
+
+        } catch (Exception ex) {
+        }
+
+        return linereultcal;
     }
 
     //   GOOGLE SIGN IN
@@ -379,7 +586,7 @@ public class MainActivity extends AppCompatActivity {
                 Log.i("SignedIn", "OnActivityResult");
             } else {
                 // Google Sign In failed, update UI appropriately
-                Log.i("onActivityResult", "Sign in failed");
+                Log.i("onActivityResult", "Sign in failed :" + result.getStatus());
             }
         }
     }
@@ -418,128 +625,14 @@ public class MainActivity extends AppCompatActivity {
     //   GOOGLE SIGN IN END
 
     public static void loadGroupsFromGoogle() {
-        Log.i("loadGroupsFromGoogle", "Starting");
         if (user != null) {
 
             Log.i("loadGroupsFromGoogle", "Loading");
 
-//            final DatabaseReference thisRef = database.getReference();
+            rootDB.addValueEventListener(groupListener);
 
-            rootDB.addValueEventListener(new ValueEventListener() {
-                @Override
-                public void onDataChange(DataSnapshot dataSnapshot) {
-
-                    Log.i("loadGroupsFromGoogle", "Count :" + dataSnapshot.getChildrenCount());
-                    groups.clear();
-
-
-                    for (final DataSnapshot groupDS : dataSnapshot.getChildren()) {
-                        Log.i("DataSnapshot groupDS", "" + groupDS);
-
-                        ridersDB = database.getReference().child(groupDS.getKey()).child("Riders");
-                        ridersDB.addValueEventListener(new ValueEventListener() {
-                            @Override
-                            public void onDataChange(DataSnapshot dataSnapshot) {
-                                rootDB.child(groupDS.getKey()).child("Details").child("RiderCount").setValue(Long.toString(dataSnapshot.getChildrenCount()));
-                            }
-
-                            @Override
-                            public void onCancelled(DatabaseError databaseError) {
-
-                            }
-                        });
-//                        rootDB.child(groupDS.getKey()).child("Details").child("RiderCount").setValue(Long.toString(ridersDB.));
-
-                        for (DataSnapshot detailsDS : groupDS.getChildren()) {
-
-                            if (detailsDS.getKey().equals("Details")) {
-                                Log.i("detailsDS", "" + detailsDS);
-                                GenericTypeIndicator<Map<String, String>> genericTypeIndicator = new GenericTypeIndicator<Map<String, String>>() {
-                                };
-
-                                Map<String, String> map = null;
-                                map = detailsDS.getValue(genericTypeIndicator);
-
-                                String name = map.get("Name");
-                                String password = map.get("Password");
-                                String ID = map.get("ID");
-                                String count = map.get("RiderCount");
-                                String created = map.get("Created");
-
-                                RideOutGroup newGroup = new RideOutGroup(ID, name, password, count, Long.parseLong(created));
-
-                                groups.add(newGroup);
-                                myAdapter.notifyDataSetChanged();
-
-                            }
-                        }
-                    }
-                    loadSettings();
-//                    myAdapter.notifyDataSetChanged();
-//                    if (mapView) {
-//                        Log.i("Updated Data", "You're in MapView");
-//                        MapsActivity.showRiders(members);
-//                    }
-                }
-
-                @Override
-                public void onCancelled(DatabaseError databaseError) {
-
-                }
-            });
         }
     }
-
-    public static void checkMembers(RideOutGroup thisGroup) {
-        ridersDB = database.getReference().child(thisGroup.ID).child("Riders");
-        Log.i("checkMembers", "ridersDB.getKey " + ridersDB.getKey());
-        ridersDB.addValueEventListener(new ValueEventListener() {
-            @Override
-            public void onDataChange(DataSnapshot dataSnapshot) {
-                Log.i("MainAct checkRiders", "onDataChange");
-                members.clear();
-                for (DataSnapshot riderDS : dataSnapshot.getChildren()) {
-                    // check all the rider data has been added to Google
-                    if (riderDS.getChildrenCount() == 5) {
-                        GenericTypeIndicator<Map<String, String>> genericTypeIndicator = new GenericTypeIndicator<Map<String, String>>() {
-                        };
-
-                        Map<String, String> map = null;
-                        map = riderDS.getValue(genericTypeIndicator);
-                        Log.i("riderDS.getKey", "" + riderDS.getKey());
-
-                        String riderName = map.get("riderName");
-                        String riderState = map.get("riderState");
-                        String riderLat = map.get("Lat");
-                        String riderLon = map.get("Lon");
-                        String riderUpdated = map.get("LastUpdate");
-
-                        Log.i("Name " + riderName, "State " + riderState);
-                        Log.i("googleLat" + parseDouble(riderLat), "googleLon" + parseDouble(riderLon));
-                        Location riderLocation = new Location("1,20");
-                        riderLocation.setLatitude(parseDouble(riderLat));
-                        riderLocation.setLongitude(parseDouble(riderLon));
-
-                        GroupMember newRider = new GroupMember(riderDS.getKey(), riderName, riderLocation, riderState, riderUpdated);
-
-                        members.add(newRider);
-                        Log.i("Adding newRider" + newRider, "members.size " + members.size());
-                    }
-                }
-//                myAdapter.notifyDataSetChanged();
-                if (mapView) {
-                    Log.i("Updated Data", "You're in MapView");
-                    MapsActivity.showRiders(members);
-                }
-            }
-
-            @Override
-            public void onCancelled(DatabaseError databaseError) {
-                Log.i("checkMembers", "onCancelled");
-            }
-        });
-    }
-
 
     public static void saveGroupToGoogle(RideOutGroup o) {
         Log.i("saveGroupToGoogle", "Starting");
@@ -549,7 +642,7 @@ public class MainActivity extends AppCompatActivity {
         rootDB.child(o.ID).child("Details").child("Password").setValue(o.password);
         rootDB.child(o.ID).child("Details").child("ID").setValue(o.ID);
         rootDB.child(o.ID).child("Details").child("Created").setValue(o.created.toString());
-        rootDB.child(o.ID).child("Details").child("Live").setValue(o.live.toString());
+        rootDB.child(o.ID).child("Details").child("LastUsed").setValue(Long.toString(System.currentTimeMillis()));
         rootDB.child(o.ID).child("Details").child("RiderCount").setValue(o.riderCount);
     }
 
@@ -648,29 +741,13 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    public static void checkGPSrate() {
-
-        switch (GPSrate) {
-            case "High":
-                locationUpdatesTime = 10000;
-                locationUpdatesDistance = 20;
-                break;
-            case "Med":
-                locationUpdatesTime = 40000;
-                locationUpdatesDistance = 100;
-                break;
-            case "Low":
-                locationUpdatesTime = 120000;
-                locationUpdatesDistance = 500;
-                break;
-        }
-
-
-    }
-
     public static void saveSettings() {
         Log.i("Main Activity", "saveSettings");
         ed.putString("GPSrate", GPSrate).apply();
+        ed.putString("mapType", mapType).apply();
+        ed.putString("geofenceSize", geofenceSize).apply();
+        ed.putString("userLat", String.valueOf(userHome.getLatitude())).apply();
+        ed.putString("userLon", String.valueOf(userHome.getLongitude())).apply();
 //        ed.putBoolean("mapView", mapView).apply();
         if (activeGroup != null) {
             ed.putString("activeGroupID", activeGroup.ID).apply();
@@ -681,6 +758,14 @@ public class MainActivity extends AppCompatActivity {
 
     public static void loadSettings() {
         GPSrate = sharedPreferences.getString("GPSrate", "Med");
+        mapType = sharedPreferences.getString("mapType", "Normal");
+        geofenceSize = sharedPreferences.getString("geofenceSize", "Med");
+
+        String userLat = sharedPreferences.getString("userLat", "0");
+        String userLon = sharedPreferences.getString("userLon", "0");
+        userHome.setLatitude(Double.parseDouble(userLat));
+        userHome.setLongitude(Double.parseDouble(userLon));
+
 //        mapView  = sharedPreferences.getBoolean("mapView", false);
         String activeGroupID = sharedPreferences.getString("activeGroupID", "null");
         Log.i("loadSettings", "activeGroupID" + activeGroupID);
@@ -693,7 +778,6 @@ public class MainActivity extends AppCompatActivity {
                 if (thisGroup.ID.equals(activeGroupID)) {
                     activeGroup = thisGroup;
                     Log.i("activeGroup found", "" + activeGroup);
-//                    checkMembers(activeGroup);
                 }
             }
         }
@@ -711,7 +795,8 @@ public class MainActivity extends AppCompatActivity {
             signInOut = "Sign Out";
         }
 
-        menu.add(0, 0, 0, signInOut).setShortcut('3', 'c');
+        menu.add(0, 0, 0, "Settings").setShortcut('3', 'c');
+        menu.add(0, 1, 0, signInOut).setShortcut('3', 'c');
 
         return true;
     }
@@ -720,7 +805,13 @@ public class MainActivity extends AppCompatActivity {
     public boolean onOptionsItemSelected(MenuItem item) {
         int menu_choice = item.getItemId();
         switch (menu_choice) {
+
             case 0:
+                Log.i("Option", "1");
+                Intent intent = new Intent(getApplicationContext(), Settings.class);
+                startActivity(intent);
+                return true;
+            case 1:
                 Log.i("Option", "0");
                 if (user == null) {
                     signIn();
@@ -728,6 +819,7 @@ public class MainActivity extends AppCompatActivity {
                     signOut();
                 }
                 return true;
+
         }
 
         return super.onOptionsItemSelected(item);
@@ -752,12 +844,9 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onPause() {
-        super.onPause();
-
-        spinnerGPSrate = (Spinner) findViewById(R.id.spinnerGPS);
-        GPSrate = spinnerGPSrate.getSelectedItem().toString();
-        checkGPSrate();
+        Log.i("MainActivity", "onPause");
         saveSettings();
+        super.onPause();
     }
 
     @Override
@@ -765,18 +854,17 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         myAdapter.notifyDataSetChanged();
         Log.i("onResume", "activeGroup" + activeGroup);
-        if (activeGroup != null) {
-            Intent intent = new Intent(getApplicationContext(), MapsActivity.class);
-            startActivity(intent);
-        }
         loadSettings();
+        loadGroupsFromGoogle();
+        checkUpdate();
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        Log.i("onDestroy", "Starting");
+        Log.i("MainActivity", "onDestroy");
         mAuth.removeAuthStateListener(mAuthListener);
+        rootDB.removeEventListener(groupListener);
         saveTrip();
     }
 
