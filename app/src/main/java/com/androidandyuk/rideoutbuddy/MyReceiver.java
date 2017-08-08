@@ -21,6 +21,7 @@ public class MyReceiver extends BroadcastReceiver {
         thisLocation.setLatitude(Double.parseDouble(thisLat));
         thisLocation.setLongitude(Double.parseDouble(thisLon));
         new MapsActivity().updateLocationGoogle(thisLocation);
+//        new MapsActivity().centerMapOnUser();
 
     }
 }

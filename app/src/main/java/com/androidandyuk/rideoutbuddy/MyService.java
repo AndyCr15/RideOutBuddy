@@ -73,7 +73,7 @@ public class MyService extends Service
 
     LocationListener[] mLocationListeners = new LocationListener[] {
             new LocationListener(LocationManager.GPS_PROVIDER),
-            new LocationListener(LocationManager.NETWORK_PROVIDER)
+//            new LocationListener(LocationManager.NETWORK_PROVIDER)
     };
 
     @Override
@@ -99,18 +99,18 @@ public class MyService extends Service
     {
         Log.e(TAG, "onCreate");
         initializeLocationManager();
+//        try {
+//            mLocationManager.requestLocationUpdates(
+//                    LocationManager.NETWORK_PROVIDER, gpsTime, gpsDist,
+//                    mLocationListeners[1]);
+//        } catch (java.lang.SecurityException ex) {
+//            Log.i(TAG, "fail to request location update, ignore", ex);
+//        } catch (IllegalArgumentException ex) {
+//            Log.d(TAG, "network provider does not exist, " + ex.getMessage());
+//        }
         try {
             mLocationManager.requestLocationUpdates(
-                    LocationManager.NETWORK_PROVIDER, 60000, 500,
-                    mLocationListeners[1]);
-        } catch (java.lang.SecurityException ex) {
-            Log.i(TAG, "fail to request location update, ignore", ex);
-        } catch (IllegalArgumentException ex) {
-            Log.d(TAG, "network provider does not exist, " + ex.getMessage());
-        }
-        try {
-            mLocationManager.requestLocationUpdates(
-                    LocationManager.GPS_PROVIDER, 60000, 500,
+                    LocationManager.GPS_PROVIDER, gpsTime, gpsDist,
                     mLocationListeners[0]);
         } catch (java.lang.SecurityException ex) {
             Log.i(TAG, "fail to request location update, ignore", ex);

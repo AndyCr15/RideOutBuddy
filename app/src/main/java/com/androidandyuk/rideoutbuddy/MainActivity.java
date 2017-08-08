@@ -63,12 +63,14 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.GregorianCalendar;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -105,6 +107,9 @@ public class MainActivity extends AppCompatActivity {
     public static SimpleDateFormat sdf = new SimpleDateFormat("dd/MMM/yyyy");
     public static SimpleDateFormat dayOfWeek = new SimpleDateFormat("EEEE");
     public static int timeDifference;
+
+    public static final DecimalFormat precision = new DecimalFormat("0.00");
+    public static final DecimalFormat oneDecimal = new DecimalFormat("0.#");
 
     public static String jsonLocation = "http://www.lanarchy.co.uk/";
 
@@ -236,8 +241,6 @@ public class MainActivity extends AppCompatActivity {
                     for (final DataSnapshot groupDS : dataSnapshot.getChildren()) {
                         Log.i("DataSnapshot groupDS", "" + groupDS);
 
-
-
                         for (DataSnapshot detailsDS : groupDS.getChildren()) {
 
                             if (detailsDS.getKey().equals("Details")) {
@@ -315,7 +318,7 @@ public class MainActivity extends AppCompatActivity {
 
             Notification notification = new Notification.Builder(getApplicationContext())
                     .setContentTitle("Update Ride Out Buddy!")
-                    .setContentText("There's a new Alpha version of Ride Out Buddy. Update in the Settings page.")
+                    .setContentText("There's a new Beta version of Ride Out Buddy. Update in the Settings page.")
                     .setContentIntent(pendingIntent)
                     .addAction(android.R.drawable.btn_default, "GO TO SETTINGS", pendingIntent)
                     .setSmallIcon(R.drawable.ic_stat_name)
@@ -475,6 +478,14 @@ public class MainActivity extends AppCompatActivity {
         Calendar calendar = Calendar.getInstance();
         calendar.setTimeInMillis(millis);
         return dateTimeFormatter.format(calendar.getTime());
+    }
+
+    public static String millisToHours(Long millis) {
+        return String.format("%d hrs, %02d mins",
+                TimeUnit.MILLISECONDS.toHours(millis),
+                TimeUnit.MILLISECONDS.toMinutes(millis) -
+                        TimeUnit.MINUTES.toMinutes(TimeUnit.MILLISECONDS.toHours(millis))
+        );
     }
 
     // get news from server
@@ -675,7 +686,7 @@ public class MainActivity extends AppCompatActivity {
         Log.i("saveTrip", "trip.size " + trip.size());
         ed.putInt("tripSize", trip.size()).apply();
 
-        tripDB.execSQL("CREATE TABLE IF NOT EXISTS trip (lat VARCHAR, lon VARCHAR, time VARCHAR)");
+        tripDB.execSQL("CREATE TABLE IF NOT EXISTS trip (lat VARCHAR, lon VARCHAR, time VARCHAR, start INTEGER, stop INTEGER, stationary INTEGER)");
 
         tripDB.delete("trip", null, null);
 
@@ -689,10 +700,12 @@ public class MainActivity extends AppCompatActivity {
                     String thisLat = Double.toString(thisTrip.location.getLatitude());
                     String thisLon = Double.toString(thisTrip.location.getLongitude());
                     String thisTime = Long.toString(thisTrip.timeStamp);
+                    int startInt = (thisTrip.start)? 1 : 0;
+                    int stopInt = (thisTrip.start)? 1 : 0;
+                    int stationaryInt = (thisTrip.start)? 1 : 0;
 
-                    Log.i("thisTrip.timeStamp ", "" + thisTrip.timeStamp);
                     Log.i("Saving TripMarker", thisLat + " " + thisLon + " " + thisTime);
-                    tripDB.execSQL("INSERT INTO trip (lat, lon, time) VALUES ('" + thisLat + "' , '" + thisLon + "' , '" + thisTime + "')");
+                    tripDB.execSQL("INSERT INTO trip (lat, lon, time, start, stop, stationary) VALUES ('" + thisLat + "' , '" + thisLon + "' , '" + thisTime + "' , '" + startInt + "' , '" + stopInt + "' , '" + stationaryInt + "')");
 
                 }
 
@@ -718,6 +731,9 @@ public class MainActivity extends AppCompatActivity {
             int latIndex = c.getColumnIndex("lat");
             int lonIndex = c.getColumnIndex("lon");
             int timeIndex = c.getColumnIndex("time");
+            int startIndex = c.getColumnIndex("start");
+            int stopIndex = c.getColumnIndex("stop");
+            int stationaryIndex = c.getColumnIndex("stationary");
 
             c.moveToFirst();
 
@@ -725,7 +741,10 @@ public class MainActivity extends AppCompatActivity {
                 Location thisLocation = new Location("51.5007292,-0.1268194");
                 thisLocation.setLatitude(Double.parseDouble(c.getString(latIndex)));
                 thisLocation.setLongitude(Double.parseDouble(c.getString(lonIndex)));
-                TripMarker newMarker = new TripMarker(thisLocation, Long.parseLong(c.getString(timeIndex)), "Loading");
+                Boolean start = (c.getInt(startIndex) == 1)? true : false;
+                Boolean stop = (c.getInt(stopIndex) == 1)? true : false;
+                Boolean stationary = (c.getInt(stationaryIndex) == 1)? true : false;
+                TripMarker newMarker = new TripMarker(thisLocation, Long.parseLong(c.getString(timeIndex)), start, stop, stationary, "Loading");
 
                 trip.add(newMarker);
 

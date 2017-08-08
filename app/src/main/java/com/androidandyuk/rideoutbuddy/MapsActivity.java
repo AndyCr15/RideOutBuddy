@@ -12,10 +12,13 @@ import android.graphics.Color;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.media.RingtoneManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.support.annotation.NonNull;
+import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.content.ContextCompat;
@@ -70,7 +73,9 @@ import static com.androidandyuk.rideoutbuddy.MainActivity.mapView;
 import static com.androidandyuk.rideoutbuddy.MainActivity.members;
 import static com.androidandyuk.rideoutbuddy.MainActivity.messages;
 import static com.androidandyuk.rideoutbuddy.MainActivity.messagesDB;
+import static com.androidandyuk.rideoutbuddy.MainActivity.millisToHours;
 import static com.androidandyuk.rideoutbuddy.MainActivity.millisToTime;
+import static com.androidandyuk.rideoutbuddy.MainActivity.oneDecimal;
 import static com.androidandyuk.rideoutbuddy.MainActivity.recordingTrip;
 import static com.androidandyuk.rideoutbuddy.MainActivity.removeMemberFromGoogle;
 import static com.androidandyuk.rideoutbuddy.MainActivity.rootDB;
@@ -137,12 +142,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         new ChatRoom().newMessage("**" + userMember.name + " joined the group **");
 
-        // this is supposed to start checking GPS as a service, I have no evidence that it does
-        // but I keep GPS through a wakelock instead!
-        Intent intent = new Intent(this, MyService.class);
-        intent.putExtra("Time", locationUpdatesTime);
-        intent.putExtra("Dist", locationUpdatesDistance);
-        startService(intent);
 
     }
 
@@ -241,14 +240,60 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     }
 
+    public class AppConstant {
+        public static final String PAUSE_ACTION = "PAUSE_ACTION";
+        public static final String STOP_ACTION = "STOP_ACTION";
+    }
+
+
     public void recordTrip(View view) {
         Button recordButton = (Button) findViewById(R.id.recordButton);
+        TripMarker thisMarker = new TripMarker(lastKnownLocation);
+
+        Notification.Builder notif = null;
+        NotificationManager nm = null;
+
         if (!recordingTrip) {
+
             recordingTrip = true;
             recordButton.setText("StopRec");
+            thisMarker.start = true;
+            thisMarker.stationary = true;
+            trip.add(thisMarker);
+            addToTripDB(thisMarker);
+
+            notif = new Notification.Builder(getApplicationContext());
+            notif.setSmallIcon(R.drawable.ic_stat_name);
+            notif.setContentTitle("");
+            Uri path = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+            notif.setContentTitle("Ride Out Buddy");
+            notif.setContentText("You are currently recording your trip.");
+            notif.setSound(path);
+
+            Intent pauseReceive = new Intent();
+            pauseReceive.setAction(AppConstant.PAUSE_ACTION);
+            PendingIntent pendingIntentPause = PendingIntent.getBroadcast(this, 12345, pauseReceive, PendingIntent.FLAG_UPDATE_CURRENT);
+            notif.addAction(android.R.drawable.ic_media_pause, "PAUSE/RESTART", pendingIntentPause);
+
+            Intent stopReceive = new Intent();
+            stopReceive.setAction(AppConstant.STOP_ACTION);
+            PendingIntent pendingIntentStop = PendingIntent.getBroadcast(this, 12345, stopReceive, PendingIntent.FLAG_UPDATE_CURRENT);
+            notif.addAction(android.R.drawable.ic_media_pause, "STOP", pendingIntentStop);
+
+            nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            nm.notify(10, notif.getNotification());
+
         } else {
+
             recordingTrip = false;
             recordButton.setText(" Record ");
+            thisMarker.stop = true;
+            thisMarker.stationary = true;
+            trip.add(thisMarker);
+
+            nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            nm.cancel(10);
+
         }
     }
 
@@ -271,7 +316,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     public void onClick(DialogInterface dialog, int which) {
                         trip.clear();
                         showRiders(members);
-                        centerMapOnUser(view);
+                        centerMapOnUser();
                         saveTrip();
                     }
                 })
@@ -336,25 +381,64 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     public void viewTrip(View view) {
         Log.i("viewTrip", "Locations :" + trip.size());
         if (trip.size() > 1) {
+
+            View topInfo = findViewById(R.id.topInfo);
+            View bottomInfo = findViewById(R.id.bottomInfo);
+            View tripInfo = findViewById(R.id.tripInfo);
+            Button returnButton = (Button) findViewById(R.id.returnButton);
+            FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.floatingActionButton);
+
+            topInfo.setVisibility(View.INVISIBLE);
+            bottomInfo.setVisibility(View.INVISIBLE);
+            fab.setVisibility(View.INVISIBLE);
+            tripInfo.setVisibility(View.VISIBLE);
+            returnButton.setVisibility(View.VISIBLE);
+
+            TextView tripDistance = (TextView) findViewById(R.id.tripDistance);
+            TextView tripTime = (TextView) findViewById(R.id.tripTime);
+            TextView tripAverage = (TextView) findViewById(R.id.tripAverage);
+            TextView tripTop = (TextView) findViewById(R.id.tripTop);
+
             viewingTrip = true;
             mMap.clear();
             drawHome();
 
             LatLngBounds.Builder builder = new LatLngBounds.Builder();
 
+            Double distance = 0d;
+            Long totalMillis = 0L;
+            Double topSpeed = 0d;
 
-            for(int i = 1; i < trip.size(); i++){
+            for (int i = 1; i < trip.size(); i++) {
+                if (!trip.get(i).start && !trip.get(i).stop) {
+                    Log.i("TripCounter", "" + i);
 
-                LatLng first = new LatLng(trip.get(i-1).location.getLatitude(), trip.get(i-1).location.getLongitude());
-                LatLng second = new LatLng(trip.get(i).location.getLatitude(), trip.get(i).location.getLongitude());
+                    LatLng first = new LatLng(trip.get(i - 1).location.getLatitude(), trip.get(i - 1).location.getLongitude());
+                    LatLng second = new LatLng(trip.get(i).location.getLatitude(), trip.get(i).location.getLongitude());
 
-                builder.include(second);
+                    Double thisDistance = getDistance(trip.get(i - 1).location, trip.get(i).location);
+                    Long thisMillis = trip.get(i).timeStamp - trip.get(i - 1).timeStamp;
 
-                mMap.addPolyline(new PolylineOptions()
-                        .add(first,second)
-                        .width(15)
-                        .color(Color.GRAY)
-                        .geodesic(true));
+                    Log.i("thisDistance " + thisDistance, "thisMillis " + thisMillis);
+
+                    distance += thisDistance;
+                    totalMillis += thisMillis;
+
+                    Double thisHours = (double) thisMillis / 3600000L;
+                    Double thisSpeed = (double) thisDistance / thisHours;
+
+                    if (thisSpeed > topSpeed && thisSpeed < 200) {
+                        topSpeed = thisSpeed;
+                    }
+
+                    builder.include(second);
+
+                    mMap.addPolyline(new PolylineOptions()
+                            .add(first, second)
+                            .width(15)
+                            .color(Color.GRAY)
+                            .geodesic(true));
+                }
             }
 
             LatLngBounds bounds = builder.build();
@@ -364,8 +448,19 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
             mMap.animateCamera(cu);
 
-//        LatLng thisLatLng = new LatLng(lastKnownLocation.getLatitude(), lastKnownLocation.getLongitude());
-//        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(thisLatLng, 12));
+            Double totalHours = (double) totalMillis / 3600000L;
+            Double aveSpeed = distance / totalHours;
+
+            Log.i("distance " + distance, "totalHours " + totalHours);
+
+            tripDistance.setText("Distance : " + oneDecimal.format(distance) + " Miles");
+            tripTime.setText("Time : " + millisToHours(totalMillis));
+            tripAverage.setText("Ave Speed : " + oneDecimal.format(aveSpeed) + "mph");
+            tripTop.setText("Top Speed : " + oneDecimal.format(topSpeed) + "mph");
+
+
+        } else {
+            Toast.makeText(this, "No trip to view", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -424,6 +519,24 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     }
 
+    public double getDistance(Location aa, Location bb) {
+        double lat1 = bb.getLatitude();
+        double lng1 = bb.getLongitude();
+        double lat2 = aa.getLatitude();
+        double lng2 = aa.getLongitude();
+
+        int r = 6371; // average radius of the earth in km
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lng2 - lng1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                        * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        double d = r * c;
+        d = d * 0.621;
+        return d;
+    }
+
     /**
      * Manipulates the map once available.
      * This callback is triggered when the map is ready to be used.
@@ -449,7 +562,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             public void onLocationChanged(Location location) {
 
                 Log.i("onLocationChanged", "User has moved");
-//                centerMapOnLocation(location);
+
+                // location change dealt with by the service
+
+                centerMapOnLocation(location);
                 updateLocationGoogle(location);
 
             }
@@ -557,26 +673,23 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     public void updateLocationGoogle(Location thisLocation) {
         Log.i("updateLocationGoogle", "thisLocation :" + thisLocation);
+
+
         if (thisLocation != null) {
 
             if (recordingTrip) {
                 TripMarker thisTrip = new TripMarker(thisLocation);
+                Log.i("TripMarker", "" + thisTrip);
                 trip.add(thisTrip);
 
-                //save it direct into the database
-                tripDB.execSQL("CREATE TABLE IF NOT EXISTS trip (lat VARCHAR, lon VARCHAR, time VARCHAR)");
+                Boolean thisStationary = getDistance(thisLocation, trip.get(trip.size() - 2).location) < 50;
+                thisTrip.stationary = thisStationary;
 
-                // change into String to be saved to the DB
-                String thisLat = Double.toString(thisTrip.location.getLatitude());
-                String thisLon = Double.toString(thisTrip.location.getLongitude());
-                String thisTime = Long.toString(thisTrip.timeStamp);
-
-                tripDB.execSQL("INSERT INTO trip (lat, lon, time) VALUES ('" + thisLat + "' , '" + thisLon + "' , '" + thisTime + "')");
-
+                addToTripDB(thisTrip);
 
             }
 
-            // check distance from home, only procede if greater than selected meters
+            // check distance from home, only proceed if greater than selected meters
             if (distanceFromHome(thisLocation) > geofenceSizeMeters) {
                 String thisLat = Double.toString(thisLocation.getLatitude());
                 String thisLon = Double.toString(thisLocation.getLongitude());
@@ -603,6 +716,23 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
     }
 
+    public void addToTripDB(TripMarker thisTrip) {
+        Log.i("addToTripDB", "" + thisTrip);
+        //save it direct into the database
+        tripDB.execSQL("CREATE TABLE IF NOT EXISTS trip (lat VARCHAR, lon VARCHAR, time VARCHAR, start INTEGER, stop INTEGER, stationary INTEGER)");
+
+        // change into String to be saved to the DB
+        String thisLat = Double.toString(thisTrip.location.getLatitude());
+        String thisLon = Double.toString(thisTrip.location.getLongitude());
+        String thisTime = Long.toString(thisTrip.timeStamp);
+        int thisStart = (thisTrip.start) ? 1 : 0;
+        int thisStop = (thisTrip.stop) ? 1 : 0;
+        int stationaryInt = (thisTrip.stationary) ? 1 : 0;
+
+        tripDB.execSQL("INSERT INTO trip (lat, lon, time, start, stop, stationary) VALUES ('" + thisLat + "' , '" + thisLon + "' , '" + thisTime + "' , '" + thisStart + "' , '" + thisStop + "' , '" + stationaryInt + "')");
+
+    }
+
     public double distanceFromHome(Location o) {
         Log.i("distanceFromHome", "Location " + o);
         Log.i("HomeLocation", "Location " + userHome);
@@ -627,7 +757,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         return 0;
     }
 
-    public void centerMapOnUser(View view) {
+    public void centreMapOnUserButton(View view) {
+        centerMapOnUser();
+    }
+
+    public void centerMapOnUser() {
         i("centerMapOnUser", "called");
 
         viewingTrip = false;
@@ -649,7 +783,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         if (selectedLatLng.latitude != 0 && selectedLatLng.longitude != 0) {
             Log.i("centerMapOnLocation", "" + selectedLatLng);
 
-            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(selectedLatLng, 15));
+            mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(selectedLatLng, 15));
         } else {
             Toast.makeText(this, "User within home geolocation, location hidden", Toast.LENGTH_LONG).show();
         }
@@ -739,8 +873,26 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
     }
 
-    public static void drawHome(){
-        LatLng home = new LatLng(userHome.getLatitude(),userHome.getLongitude());
+    public void returnClicked(View view) {
+        View topInfo = findViewById(R.id.topInfo);
+        View bottomInfo = findViewById(R.id.bottomInfo);
+        View tripInfo = findViewById(R.id.tripInfo);
+        Button returnButton = (Button) findViewById(R.id.returnButton);
+        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.floatingActionButton);
+
+        topInfo.setVisibility(View.VISIBLE);
+        bottomInfo.setVisibility(View.VISIBLE);
+        tripInfo.setVisibility(View.INVISIBLE);
+        returnButton.setVisibility(View.INVISIBLE);
+        fab.setVisibility(View.VISIBLE);
+
+        viewingTrip = false;
+        showRiders(members);
+        centerMapOnLocation(lastKnownLocation);
+    }
+
+    public static void drawHome() {
+        LatLng home = new LatLng(userHome.getLatitude(), userHome.getLongitude());
         mMap.addCircle(new CircleOptions()
                 .center(home)
                 .radius(geofenceSizeMeters)
@@ -774,9 +926,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                             activeGroup = null;
                             saveSettings();
                             Log.i("LeavingGroup", "activeGroup" + activeGroup);
-                            Intent intent = new Intent(getApplicationContext(), MyService.class);
-                            stopService(intent);
-                            unregisterReceiver(myReceiver);
+
                             finish();
                         }
                     })
@@ -794,7 +944,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     protected void onPause() {
         super.onPause();
         saveSettings();
-//        saveTrip();
+
+        Intent intent = new Intent(this, MyService.class);
+        intent.putExtra("Time", locationUpdatesTime);
+        intent.putExtra("Dist", locationUpdatesDistance);
+        startService(intent);
+
     }
 
     @Override
@@ -802,6 +957,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         super.onResume();
         loadSettings();
         checkRecording();
+
+        // stop service now we're back
+        Intent intent = new Intent(getApplicationContext(), MyService.class);
+        stopService(intent);
+        unregisterReceiver(myReceiver);
+
         // if mapView then likely returning from screen off
         if (mapView) {
             checkMembers(activeGroup);
