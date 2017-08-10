@@ -86,9 +86,20 @@ public class MyService extends Service
     public int onStartCommand(Intent intent, int flags, int startId) {
         Log.e(TAG, "onStartCommand");
 
-        int gpsTime = intent.getIntExtra("Time", 30000);
-        int gpsDist = intent.getIntExtra("Dist", 100);
+        gpsTime = intent.getIntExtra("Time", 20000);
+        gpsDist = intent.getIntExtra("Dist", 100);
         Log.i("gpsTime " + gpsTime,"gpsDist " + gpsDist);
+
+        try {
+            mLocationManager.requestLocationUpdates(
+                    LocationManager.GPS_PROVIDER, gpsTime, gpsDist,
+                    mLocationListeners[0]);
+        } catch (java.lang.SecurityException ex) {
+            Log.i(TAG, "fail to request location update, ignore", ex);
+        } catch (IllegalArgumentException ex) {
+            Log.d(TAG, "gps provider does not exist " + ex.getMessage());
+        }
+
 
         super.onStartCommand(intent, flags, startId);
         return START_STICKY;
@@ -99,24 +110,6 @@ public class MyService extends Service
     {
         Log.e(TAG, "onCreate");
         initializeLocationManager();
-//        try {
-//            mLocationManager.requestLocationUpdates(
-//                    LocationManager.NETWORK_PROVIDER, gpsTime, gpsDist,
-//                    mLocationListeners[1]);
-//        } catch (java.lang.SecurityException ex) {
-//            Log.i(TAG, "fail to request location update, ignore", ex);
-//        } catch (IllegalArgumentException ex) {
-//            Log.d(TAG, "network provider does not exist, " + ex.getMessage());
-//        }
-        try {
-            mLocationManager.requestLocationUpdates(
-                    LocationManager.GPS_PROVIDER, gpsTime, gpsDist,
-                    mLocationListeners[0]);
-        } catch (java.lang.SecurityException ex) {
-            Log.i(TAG, "fail to request location update, ignore", ex);
-        } catch (IllegalArgumentException ex) {
-            Log.d(TAG, "gps provider does not exist " + ex.getMessage());
-        }
     }
 
     @Override

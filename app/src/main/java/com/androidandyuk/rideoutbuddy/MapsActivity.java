@@ -1,5 +1,6 @@
 package com.androidandyuk.rideoutbuddy;
 
+import android.Manifest;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -16,6 +17,7 @@ import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.design.widget.FloatingActionButton;
@@ -54,6 +56,13 @@ import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.GenericTypeIndicator;
 import com.google.firebase.database.ValueEventListener;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -64,6 +73,7 @@ import static com.androidandyuk.rideoutbuddy.MainActivity.database;
 import static com.androidandyuk.rideoutbuddy.MainActivity.geofenceSizeMeters;
 import static com.androidandyuk.rideoutbuddy.MainActivity.lastKnownLocation;
 import static com.androidandyuk.rideoutbuddy.MainActivity.loadSettings;
+import static com.androidandyuk.rideoutbuddy.MainActivity.loadTrip;
 import static com.androidandyuk.rideoutbuddy.MainActivity.locationListener;
 import static com.androidandyuk.rideoutbuddy.MainActivity.locationManager;
 import static com.androidandyuk.rideoutbuddy.MainActivity.locationUpdatesDistance;
@@ -93,6 +103,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private static GoogleMap mMap;
 
     private static Boolean viewingTrip = false;
+    public static Location topSpeedLocation;
+    public static Boolean importingDB = true;
 
     TextView currentUser;
     private ListView listView2;
@@ -108,8 +120,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
-
-        Log.i("locationUpdatesTime " + locationUpdatesTime, "locationUpdatesDistance " + locationUpdatesDistance);
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
@@ -184,13 +194,21 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     String name = map.get("name");
                     String stamp = map.get("stamp");
 
-                    ChatMessage newMessage = new ChatMessage(ID, name, msg, stamp);
+                    // messages over 3 days old are deleted
+                    if((Long.valueOf(stamp) + 259200000) > System.currentTimeMillis()) {
+                        ChatMessage newMessage = new ChatMessage(ID, name, msg, stamp);
+                        Log.i("Adding newMessage", "" + newMessage);
+                        messages.add(newMessage);
+                        myChatAdapter2.notifyDataSetChanged();
+                        checkEmergency();
+                    } else {
+                        //remove old message
+                        rootDB.child(activeGroup.ID).child("Messages").child(ID).removeValue();
+                        Log.i("Removing Old Group", ID);
+                    }
 
-                    Log.i("Adding newMessage", "" + newMessage);
-                    messages.add(newMessage);
                 }
-                myChatAdapter2.notifyDataSetChanged();
-                checkEmergency();
+
 
                 if (myChatAdapter2.getCount() > 0) {
                     listView2.setSelection(myChatAdapter2.getCount() - 1);
@@ -248,7 +266,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     public void recordTrip(View view) {
         Button recordButton = (Button) findViewById(R.id.recordButton);
-        TripMarker thisMarker = new TripMarker(lastKnownLocation);
 
         Notification.Builder notif = null;
         NotificationManager nm = null;
@@ -257,8 +274,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
             recordingTrip = true;
             recordButton.setText("StopRec");
+            TripMarker thisMarker = new TripMarker(lastKnownLocation);
             thisMarker.start = true;
-            thisMarker.stationary = true;
             trip.add(thisMarker);
             addToTripDB(thisMarker);
 
@@ -287,9 +304,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
             recordingTrip = false;
             recordButton.setText(" Record ");
-            thisMarker.stop = true;
-            thisMarker.stationary = true;
-            trip.add(thisMarker);
+            trip.get(trip.size() - 1).stop = true;
 
             nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
             nm.cancel(10);
@@ -378,28 +393,33 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         });
     }
 
-    public void viewTrip(View view) {
+    public void viewTripClicked(View view) {
+        viewTrip();
+    }
+
+    public void viewTrip() {
         Log.i("viewTrip", "Locations :" + trip.size());
+        viewingTrip = true;
+
+        View topInfo = findViewById(R.id.topInfo);
+        View bottomInfo = findViewById(R.id.bottomInfo);
+        View tripInfo = findViewById(R.id.tripInfo);
+        View lowerTripInfo = findViewById(R.id.lowerTripInfo);
+        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.floatingActionButton);
+
+        topInfo.setVisibility(View.INVISIBLE);
+        bottomInfo.setVisibility(View.INVISIBLE);
+        fab.setVisibility(View.INVISIBLE);
+        tripInfo.setVisibility(View.VISIBLE);
+        lowerTripInfo.setVisibility(View.VISIBLE);
+
+        TextView tripDistance = (TextView) findViewById(R.id.tripDistance);
+        TextView tripTime = (TextView) findViewById(R.id.tripTime);
+        TextView tripAverage = (TextView) findViewById(R.id.tripAverage);
+        TextView tripTop = (TextView) findViewById(R.id.tripTop);
+
         if (trip.size() > 1) {
 
-            View topInfo = findViewById(R.id.topInfo);
-            View bottomInfo = findViewById(R.id.bottomInfo);
-            View tripInfo = findViewById(R.id.tripInfo);
-            Button returnButton = (Button) findViewById(R.id.returnButton);
-            FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.floatingActionButton);
-
-            topInfo.setVisibility(View.INVISIBLE);
-            bottomInfo.setVisibility(View.INVISIBLE);
-            fab.setVisibility(View.INVISIBLE);
-            tripInfo.setVisibility(View.VISIBLE);
-            returnButton.setVisibility(View.VISIBLE);
-
-            TextView tripDistance = (TextView) findViewById(R.id.tripDistance);
-            TextView tripTime = (TextView) findViewById(R.id.tripTime);
-            TextView tripAverage = (TextView) findViewById(R.id.tripAverage);
-            TextView tripTop = (TextView) findViewById(R.id.tripTop);
-
-            viewingTrip = true;
             mMap.clear();
             drawHome();
 
@@ -429,14 +449,39 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
                     if (thisSpeed > topSpeed && thisSpeed < 200) {
                         topSpeed = thisSpeed;
+                        topSpeedLocation = trip.get(i).location;
                     }
 
                     builder.include(second);
 
+                    int polyColour = Color.GRAY;
+                    if (thisSpeed > 20) {
+                        polyColour = Color.rgb(141, 179, 139);
+                    }
+                    if (thisSpeed > 30) {
+                        polyColour = Color.rgb(91, 202, 85);
+                    }
+                    if (thisSpeed > 40) {
+                        polyColour = Color.rgb(100, 221, 23);
+                    }
+                    if (thisSpeed > 50) {
+                        polyColour = Color.rgb(205, 220, 57);
+                    }
+                    if (thisSpeed > 60) {
+                        polyColour = Color.rgb(233, 117, 40);
+                    }
+                    if (thisSpeed > 70) {
+                        polyColour = Color.rgb(233, 69, 40);
+                    }
+                    if (thisSpeed > 80) {
+                        polyColour = Color.rgb(198, 40, 40);
+                    }
+
+
                     mMap.addPolyline(new PolylineOptions()
                             .add(first, second)
                             .width(15)
-                            .color(Color.GRAY)
+                            .color(polyColour)
                             .geodesic(true));
                 }
             }
@@ -462,6 +507,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         } else {
             Toast.makeText(this, "No trip to view", Toast.LENGTH_SHORT).show();
         }
+    }
+
+    public void showTopSpeed(View view) {
+        centerMapOnLocation(topSpeedLocation);
     }
 
     public void emergency(View view) {
@@ -519,7 +568,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     }
 
-    public double getDistance(Location aa, Location bb) {
+    public static double getDistance(Location aa, Location bb) {
         double lat1 = bb.getLatitude();
         double lng1 = bb.getLongitude();
         double lat2 = aa.getLatitude();
@@ -550,11 +599,36 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
 
+        Log.i("MapsActivity", "onMapReady");
+
+        startLocationService();
+
         mMap.setOnMapLongClickListener(this);
 
         mapView = true;
 
-        // zoom in on user's location
+
+        checkMembers(activeGroup);
+        updateCurrentView();
+
+        switch (mapType) {
+            case "Normal":
+                mMap.setMapType(GoogleMap.MAP_TYPE_NORMAL);
+                return;
+            case "Hybrid":
+                mMap.setMapType(GoogleMap.MAP_TYPE_HYBRID);
+                return;
+            case "Satellite":
+                mMap.setMapType(GoogleMap.MAP_TYPE_SATELLITE);
+                return;
+            case "Terrain":
+                mMap.setMapType(GoogleMap.MAP_TYPE_TERRAIN);
+                return;
+        }
+
+    }
+
+    public void setupLocationManager(){
         locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
 
         locationListener = new LocationListener() {
@@ -616,25 +690,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             }
 
         }
-
-        checkMembers(activeGroup);
-        updateCurrentView();
-
-        switch (mapType) {
-            case "Normal":
-                mMap.setMapType(GoogleMap.MAP_TYPE_NORMAL);
-                return;
-            case "Hybrid":
-                mMap.setMapType(GoogleMap.MAP_TYPE_HYBRID);
-                return;
-            case "Satellite":
-                mMap.setMapType(GoogleMap.MAP_TYPE_SATELLITE);
-                return;
-            case "Terrain":
-                mMap.setMapType(GoogleMap.MAP_TYPE_TERRAIN);
-                return;
-        }
-
     }
 
     @Override
@@ -661,19 +716,35 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
             if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
 
-                locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, locationUpdatesTime, locationUpdatesDistance, locationListener);
-
-                lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-                updateLocationGoogle(lastKnownLocation);
+//                locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, locationUpdatesTime, locationUpdatesDistance, locationListener);
+//
+//                lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+//                updateLocationGoogle(lastKnownLocation);
 
                 centerMapOnLocation(lastKnownLocation);
             }
+
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
+
+                Log.i("onRequest", "Write Storage permission granted");
+
+                if (importingDB) {
+                    importDB();
+                } else {
+                    exportDB();
+                }
+
+
+            }
+
         }
+
     }
 
     public void updateLocationGoogle(Location thisLocation) {
         Log.i("updateLocationGoogle", "thisLocation :" + thisLocation);
 
+        lastKnownLocation = thisLocation;
 
         if (thisLocation != null) {
 
@@ -682,8 +753,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 Log.i("TripMarker", "" + thisTrip);
                 trip.add(thisTrip);
 
-                Boolean thisStationary = getDistance(thisLocation, trip.get(trip.size() - 2).location) < 50;
-                thisTrip.stationary = thisStationary;
+                if (getDistance(thisLocation, trip.get(trip.size() - 2).location) < 10) {
+                    thisTrip.stationary = true;
+                }
 
                 addToTripDB(thisTrip);
 
@@ -733,6 +805,125 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     }
 
+    public void editTrip(View view) {
+        Intent intent = new Intent(getApplicationContext(), EditTrip.class);
+        startActivity(intent);
+    }
+
+    public void importTrip(View view) {
+        importingDB = true;
+        int REQUEST_ID_MULTIPLE_PERMISSIONS = 1;
+        int storage = ContextCompat.checkSelfPermission(this, android.Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        List<String> listPermissionsNeeded = new ArrayList<>();
+        if (storage != PackageManager.PERMISSION_GRANTED) {
+            listPermissionsNeeded.add(android.Manifest.permission.WRITE_EXTERNAL_STORAGE);
+            Log.i("importTrip", "storage !=");
+        }
+        if (!listPermissionsNeeded.isEmpty()) {
+            ActivityCompat.requestPermissions(this, listPermissionsNeeded.toArray
+                    (new String[listPermissionsNeeded.size()]), REQUEST_ID_MULTIPLE_PERMISSIONS);
+            Log.i("importTrip", "listPermissionsNeeded !=");
+        } else {
+            Log.i("importTrip", "importing!");
+            importDB();
+        }
+    }
+
+    public void exportTrip(View view) {
+        importingDB = false;
+        int REQUEST_ID_MULTIPLE_PERMISSIONS = 1;
+        int storage = ContextCompat.checkSelfPermission(this, android.Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        List<String> listPermissionsNeeded = new ArrayList<>();
+        if (storage != PackageManager.PERMISSION_GRANTED) {
+            listPermissionsNeeded.add(android.Manifest.permission.WRITE_EXTERNAL_STORAGE);
+            Log.i("exportTrip", "storage !=");
+        }
+        if (!listPermissionsNeeded.isEmpty()) {
+            ActivityCompat.requestPermissions(this, listPermissionsNeeded.toArray
+                    (new String[listPermissionsNeeded.size()]), REQUEST_ID_MULTIPLE_PERMISSIONS);
+            Log.i("exportTrip", "listPermissionsNeeded !=");
+        } else {
+            Log.i("exportTrip", "exporting!");
+            exportDB();
+        }
+    }
+
+    public void exportDB() {
+        Log.i("exportDB", "Starting");
+        File sd = Environment.getExternalStorageDirectory();
+        File data = Environment.getDataDirectory();
+        FileChannel source = null;
+        FileChannel destination = null;
+
+        File dir = new File(Environment.getExternalStorageDirectory() + "/RideOutBuddy/");
+//        Log.i("dir is ", "" + dir);
+//        dir.mkdir();
+        try {
+            if (dir.mkdir()) {
+                System.out.println("Directory created");
+            } else {
+                System.out.println("Directory is not created");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            Log.i("Creating Dir Error", "" + e);
+        }
+
+        String currentDBPath = "/data/com.androidandyuk.rideoutbuddy/databases/trip";
+        String backupDBPath = "RideOutBuddy/Trip.db";
+        File currentDB = new File(data, currentDBPath);
+        File backupDB = new File(sd, backupDBPath);
+        try {
+            source = new FileInputStream(currentDB).getChannel();
+            destination = new FileOutputStream(backupDB).getChannel();
+            destination.transferFrom(source, 0, source.size());
+            source.close();
+            destination.close();
+            Toast.makeText(this, "DB Exported!", Toast.LENGTH_LONG).show();
+        } catch (IOException e) {
+            e.printStackTrace();
+            Toast.makeText(this, "Exported Failed!", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    public void importDB() {
+        Log.i("ImportDB", "Started");
+        try {
+            String DB_PATH = "/data/data/com.androidandyuk.rideoutbuddy/databases/trip";
+
+            File sdcard = Environment.getExternalStorageDirectory();
+            String yourDbFileNamePresentInSDCard = sdcard.getAbsolutePath() + File.separator + "RideOutBuddy/Trip.db";
+
+            Log.i("ImportDB", "SDCard File " + yourDbFileNamePresentInSDCard);
+
+            File file = new File(yourDbFileNamePresentInSDCard);
+            // Open your local db as the input stream
+            InputStream myInput = new FileInputStream(file);
+
+            // Path to created empty db
+            String outFileName = DB_PATH;
+
+            // Opened assets database structure
+            OutputStream myOutput = new FileOutputStream(outFileName);
+
+            // transfer bytes from the inputfile to the outputfile
+            byte[] buffer = new byte[1024];
+            int length;
+            while ((length = myInput.read(buffer)) > 0) {
+                myOutput.write(buffer, 0, length);
+            }
+
+            // Close the streams
+            myOutput.flush();
+            myOutput.close();
+            myInput.close();
+        } catch (Exception e) {
+            Log.i("ImportDB", "Exception Caught" + e);
+        }
+        loadTrip();
+        viewTrip();
+    }
+
     public double distanceFromHome(Location o) {
         Log.i("distanceFromHome", "Location " + o);
         Log.i("HomeLocation", "Location " + userHome);
@@ -758,7 +949,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
     public void centreMapOnUserButton(View view) {
-        centerMapOnUser();
+        viewingTrip = false;
+        centerMapOnLocation(lastKnownLocation);
     }
 
     public void centerMapOnUser() {
@@ -766,15 +958,15 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         viewingTrip = false;
 
-        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-
-            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, locationUpdatesTime, locationUpdatesDistance, locationListener);
-
-            i("Center View on User", "LK Location updated");
-            lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-            updateLocationGoogle(lastKnownLocation);
+//        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+//
+//            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, locationUpdatesTime, locationUpdatesDistance, locationListener);
+//
+//            i("Center View on User", "LK Location updated");
+//            lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+//            updateLocationGoogle(lastKnownLocation);
             centerMapOnLocation(lastKnownLocation);
-        }
+//        }
     }
 
     public void centerMapOnLocation(Location location) {
@@ -874,17 +1066,32 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
     public void returnClicked(View view) {
+        returnFromViewTrip();
+    }
+
+    public void returnFromViewTrip() {
         View topInfo = findViewById(R.id.topInfo);
         View bottomInfo = findViewById(R.id.bottomInfo);
         View tripInfo = findViewById(R.id.tripInfo);
-        Button returnButton = (Button) findViewById(R.id.returnButton);
+        View lowerTripInfo = findViewById(R.id.lowerTripInfo);
         FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.floatingActionButton);
 
         topInfo.setVisibility(View.VISIBLE);
         bottomInfo.setVisibility(View.VISIBLE);
         tripInfo.setVisibility(View.INVISIBLE);
-        returnButton.setVisibility(View.INVISIBLE);
+        lowerTripInfo.setVisibility(View.INVISIBLE);
         fab.setVisibility(View.VISIBLE);
+
+        TextView tripDistance = (TextView) findViewById(R.id.tripDistance);
+        TextView tripTime = (TextView) findViewById(R.id.tripTime);
+        TextView tripAverage = (TextView) findViewById(R.id.tripAverage);
+        TextView tripTop = (TextView) findViewById(R.id.tripTop);
+
+        tripDistance.setText("0");
+        tripTime.setText("0");
+        tripAverage.setText("0");
+        tripTop.setText("0");
+
 
         viewingTrip = false;
         showRiders(members);
@@ -909,33 +1116,41 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             Log.i("onKeyDown", "" + activeGroup);
-            new AlertDialog.Builder(MapsActivity.this)
-                    .setIcon(android.R.drawable.ic_dialog_alert)
-                    .setTitle("Leave the current group?")
-                    .setMessage("You're about to leave your current group?")
-                    .setPositiveButton("Leave", new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialog, int which) {
 
-                            //set this to be a new 'last used' for the group
-                            rootDB.child(activeGroup.ID).child("Details").child("LastUsed").setValue(Long.toString(System.currentTimeMillis()));
+            View lowerTripInfo = findViewById(R.id.lowerTripInfo);
+            if (lowerTripInfo.isShown()) {
+                returnFromViewTrip();
+            } else {
+                new AlertDialog.Builder(MapsActivity.this)
+                        .setIcon(android.R.drawable.ic_dialog_alert)
+                        .setTitle("Leave the current group?")
+                        .setMessage("You're about to leave your current group?")
+                        .setPositiveButton("Leave", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
 
-                            mapView = false;
-                            new ChatRoom().newMessage("** " + userMember.name + " has left the group **");
-                            removeMemberFromGoogle(user.getUid(), activeGroup);
-                            activeGroup = null;
-                            saveSettings();
-                            Log.i("LeavingGroup", "activeGroup" + activeGroup);
+                                //set this to be a new 'last used' for the group
+                                rootDB.child(activeGroup.ID).child("Details").child("LastUsed").setValue(Long.toString(System.currentTimeMillis()));
 
-                            finish();
-                        }
-                    })
-                    .setNegativeButton("Stay", new DialogInterface.OnClickListener() {
-                        public void onClick(DialogInterface dialog, int id) {
-                        }
-                    })
-                    .show();
+                                mapView = false;
+                                new ChatRoom().newMessage("** " + userMember.name + " has left the group **");
+                                removeMemberFromGoogle(user.getUid(), activeGroup);
+                                activeGroup = null;
+                                saveSettings();
 
+                                stopLocationService();
+
+                                Log.i("LeavingGroup", "activeGroup" + activeGroup);
+
+                                finish();
+                            }
+                        })
+                        .setNegativeButton("Stay", new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface dialog, int id) {
+                            }
+                        })
+                        .show();
+            }
         }
         return super.onKeyDown(keyCode, event);
     }
@@ -944,27 +1159,73 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     protected void onPause() {
         super.onPause();
         saveSettings();
+    }
 
-        Intent intent = new Intent(this, MyService.class);
-        intent.putExtra("Time", locationUpdatesTime);
-        intent.putExtra("Dist", locationUpdatesDistance);
-        startService(intent);
+    public void startLocationService(){
 
+        Log.i("startLocationService","" + lastKnownLocation);
+
+        if (Build.VERSION.SDK_INT < 23) {
+
+            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, locationUpdatesTime, locationUpdatesDistance, locationListener);
+
+        } else {
+
+            if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+
+                Intent intent = new Intent(this, MyService.class);
+                intent.putExtra("Time", locationUpdatesTime);
+                intent.putExtra("Dist", locationUpdatesDistance);
+                startService(intent);
+
+                lastKnownLocation.setLatitude(1d);
+                lastKnownLocation.setLongitude(50d);
+
+            } else {
+
+                ActivityCompat.requestPermissions(this, new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, 1);
+
+            }
+
+        }
+
+    }
+
+    public void startLocationManager(){
+        try {
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                return;
+            }
+            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, locationUpdatesTime, locationUpdatesDistance, locationListener);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void stopLocationService(){
+        try {
+            Intent intent = new Intent(getApplicationContext(), MyService.class);
+            stopService(intent);
+            unregisterReceiver(myReceiver);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     @Override
     protected void onResume() {
-        super.onResume();
+
+        Log.i("MapsActivity","onResume");
+
         loadSettings();
         checkRecording();
 
-        // stop service now we're back
-        Intent intent = new Intent(getApplicationContext(), MyService.class);
-        stopService(intent);
-        unregisterReceiver(myReceiver);
 
-        // if mapView then likely returning from screen off
-        if (mapView) {
+
+        if(viewingTrip){
+            viewTrip();
+        } else if (mapView) {
+            // if mapView then likely returning from screen off
             checkMembers(activeGroup);
             showRiders(members);
             checkMessages();
@@ -974,21 +1235,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
         initiateList();
         mapView = true;
+        super.onResume();
     }
-
-//    private class MyReceiver extends BroadcastReceiver {
-//
-//        @Override
-//        public void onReceive(Context arg0, Intent arg1) {
-//
-//            String thisLat = arg1.getStringExtra("Lat");
-//            String thisLon = arg1.getStringExtra("Lon");
-//
-//            Log.i("thisLat(s)" + thisLat,"thisLon(s)" + thisLon);
-//
-//        }
-//
-//    }
 
     @Override
     protected void onStart() {

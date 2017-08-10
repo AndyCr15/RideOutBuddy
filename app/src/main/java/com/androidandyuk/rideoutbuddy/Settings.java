@@ -109,15 +109,15 @@ public class Settings extends AppCompatActivity {
         Log.i("checkSpinners ", GPSrate);
         switch (GPSrate) {
             case "High":
-                locationUpdatesTime = 10000;
-                locationUpdatesDistance = 20;
+                locationUpdatesTime = 5000;
+                locationUpdatesDistance = 40;
                 break;
             case "Med":
-                locationUpdatesTime = 40000;
+                locationUpdatesTime = 20000;
                 locationUpdatesDistance = 100;
                 break;
             case "Low":
-                locationUpdatesTime = 120000;
+                locationUpdatesTime = 60000;
                 locationUpdatesDistance = 500;
                 break;
         }

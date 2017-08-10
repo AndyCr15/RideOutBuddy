@@ -29,23 +29,12 @@
         tools:context=".MapsActivity"
         tools:layout="@layout/abc_list_menu_item_radio" />
 
-    <Button
-        android:id="@+id/returnButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
-        android:layout_margin="8dp"
-        android:background="@drawable/rounded_corners"
-        android:onClick="returnClicked"
-        android:text="return"
-        android:textColor="@android:color/white"
-        android:visibility="invisible" />
-
     <LinearLayout
         android:id="@+id/tripInfo"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_alignParentTop="true"
+        android:alpha="0.8"
         android:orientation="vertical"
         android:visibility="invisible">
 
@@ -98,11 +87,85 @@
                     android:layout_height="wrap_content"
                     android:layout_margin="4dp"
                     android:layout_weight="1"
+                    android:onClick="showTopSpeed"
                     android:text="Top Speed" />
             </LinearLayout>
 
         </LinearLayout>
 
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/lowerTripInfo"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:orientation="vertical"
+        android:visibility="invisible">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/importButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="8dp"
+                android:alpha="0.8"
+                android:background="@drawable/rounded_corners_grey"
+                android:onClick="importTrip"
+                android:text="Import Trip"
+                android:textSize="12sp" />
+
+            <ImageView
+                android:id="@+id/imageView"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
+
+            <Button
+                android:id="@+id/editButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="8dp"
+                android:layout_weight="1"
+                android:alpha="0.8"
+                android:background="@drawable/rounded_corners_grey"
+                android:onClick="editTrip"
+                android:text="Edit Trip"
+                android:textSize="12sp" />
+
+            <ImageView
+                android:id="@+id/imageView2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
+
+            <Button
+                android:id="@+id/exportButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="8dp"
+                android:alpha="0.8"
+                android:background="@drawable/rounded_corners_grey"
+                android:onClick="exportTrip"
+                android:padding="4dp"
+                android:text="Export Trip"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/returnButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="8dp"
+            android:background="@drawable/rounded_corners"
+            android:onClick="returnClicked"
+            android:text="return"
+            android:textColor="@android:color/white"
+            android:visibility="gone" />
     </LinearLayout>
 
     <LinearLayout
@@ -192,8 +255,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
-        android:orientation="vertical"
-        android:visibility="visible">
+        android:orientation="vertical">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -213,7 +275,7 @@
                     android:layout_margin="4dp"
                     android:alpha="0.9"
                     android:background="@drawable/rounded_corners_grey"
-                    android:onClick="viewTrip"
+                    android:onClick="viewTripClicked"
                     android:text="View Trip"
                     android:textColor="@android:color/white" />
 

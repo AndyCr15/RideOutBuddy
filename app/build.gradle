@@ -15,8 +15,8 @@ android {
         applicationId "com.androidandyuk.rideoutbuddy"
         minSdkVersion 16
         targetSdkVersion 25
-        versionCode 11
-        versionName "v0.4.0.2"
+        versionCode 12
+        versionName "v0.4.1"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
@@ -45,6 +45,7 @@ dependencies {
     compile 'com.google.firebase:firebase-crash:10.2.1'
     testCompile 'junit:junit:4.12'
 }
+
 
 
 

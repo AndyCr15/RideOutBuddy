@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
 
     <application
         android:allowBackup="true"
@@ -50,19 +52,18 @@
             android:enabled="true"
             android:exported="true">
             <intent-filter>
-                <action android:name="com.androidandyuk.rideoutbuddy"></action>
+                <action android:name="com.androidandyuk.rideoutbuddy" />
             </intent-filter>
         </receiver>
-
         <receiver android:name=".NotificationReceiver">
             <intent-filter>
-                <action android:name="PAUSE_ACTION"/>
-                <action android:name="STOP_ACTION"/>
-
+                <action android:name="PAUSE_ACTION" />
+                <action android:name="STOP_ACTION" />
             </intent-filter>
         </receiver>
 
-        <activity android:name=".Settings"></activity>
+        <activity android:name=".Settings" />
+        <activity android:name=".EditTrip"></activity>
     </application>
 
 </manifest>

@@ -93,7 +93,7 @@ public class MainActivity extends AppCompatActivity {
 
     public static LocationManager locationManager;
     public static LocationListener locationListener;
-    public static int locationUpdatesTime = 40000;
+    public static int locationUpdatesTime = 20000;
     public static int locationUpdatesDistance = 100;
     public static int geofenceSizeMeters = 400;
     public static Location lastKnownLocation;
@@ -106,6 +106,8 @@ public class MainActivity extends AppCompatActivity {
 
     public static SimpleDateFormat sdf = new SimpleDateFormat("dd/MMM/yyyy");
     public static SimpleDateFormat dayOfWeek = new SimpleDateFormat("EEEE");
+    public static SimpleDateFormat dateTimeFormatter = new SimpleDateFormat("dd/MM HH:mm:ss");
+
     public static int timeDifference;
 
     public static final DecimalFormat precision = new DecimalFormat("0.00");
@@ -137,8 +139,6 @@ public class MainActivity extends AppCompatActivity {
     static MyGroupAdapter myAdapter;
     ListView listView;
     View passwordView;
-
-    public static SimpleDateFormat dateTimeFormatter = new SimpleDateFormat("dd/MM HH:mm:ss");
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -259,7 +259,8 @@ public class MainActivity extends AppCompatActivity {
                                     Long created = Long.parseLong(map.get("Created"));
                                     Long lastUsed = Long.parseLong(map.get("LastUsed"));
 
-                                    if((lastUsed + 604800000) > System.currentTimeMillis()) {
+                                    // groups not used for 4 days are deleted
+                                    if((lastUsed + 345600000) > System.currentTimeMillis()) {
                                         rootDB.child(groupDS.getKey()).child("Details").child("RiderCount").setValue(Long.toString(dataSnapshot.child(groupDS.getKey()).child("Riders").getChildrenCount()));
                                         RideOutGroup newGroup = new RideOutGroup(ID, name, password, count, created, lastUsed);
                                         groups.add(newGroup);

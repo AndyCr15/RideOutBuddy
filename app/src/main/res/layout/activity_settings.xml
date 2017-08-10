@@ -14,7 +14,7 @@
 
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
             android:layout_weight="0"
             android:orientation="horizontal">
 
@@ -28,8 +28,7 @@
                 android:padding="8dp"
                 android:text="GPS Check Frequency"
                 android:textAlignment="center"
-                android:textColor="@android:color/white"
-                android:visibility="gone" />
+                android:textColor="@android:color/white" />
 
             <Spinner
                 android:id="@+id/spinnerGPS"
@@ -38,8 +37,7 @@
                 android:layout_margin="4dp"
                 android:layout_weight="0"
                 android:background="@drawable/rounded_corners_grey"
-                android:padding="8dp"
-                android:visibility="gone" />
+                android:padding="8dp" />
 
         </LinearLayout>
 
