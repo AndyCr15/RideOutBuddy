@@ -34,11 +34,11 @@
             android:textSize="16sp" />
 
         <TextView
-            android:id="@+id/createdTV"
+            android:id="@+id/lastUsedTV"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="4dp"
-            android:text="TextView"
+            android:text="LastUsed"
             android:textAlignment="textEnd"
             android:textSize="12sp" />
     </LinearLayout>

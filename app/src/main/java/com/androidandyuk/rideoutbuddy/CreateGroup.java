@@ -42,7 +42,7 @@ public class CreateGroup extends AppCompatActivity {
 
     public void createGroup(View view) {
         Log.i("createGroup", "Started");
-        activeGroup = new RideOutGroup(groupName.getText().toString(), groupPassword.getText().toString());
+        activeGroup = new RideOutGroup(groupName.getText().toString(), groupPassword.getText().toString(), userMember.ID);
 //        wl.acquire();
         saveSettings();
 //        activeGroup.members.add(userMember);
@@ -72,6 +72,7 @@ public class CreateGroup extends AppCompatActivity {
         addMemberToGoogle(userMember, activeGroup);
         Intent intent = new Intent(getApplicationContext(), MapsActivity.class);
         startActivity(intent);
+        finish();
     }
 
 

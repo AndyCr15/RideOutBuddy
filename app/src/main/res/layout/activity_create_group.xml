@@ -49,16 +49,16 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_margin="32dp"
-        android:padding="16dp"
-        android:text="** PLEASE NOTE **\nGroups not used for 4 days are automatically removed.\nChat messages are automatically removed after 3 days."
+        android:layout_marginBottom="32dp"
+        android:layout_marginTop="32dp"
+        android:padding="30dp"
+        android:text="** PLEASE NOTE **\nGroups not used for 4 days are automatically removed.\nChat messages are automatically removed after 3 days.\nRemove your own group by long pressing on it."
         android:textAlignment="center"
         android:textSize="18sp"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintHorizontal_bias="0.5"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/button2"
-        android:layout_marginTop="32dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        android:layout_marginBottom="32dp" />
+        app:layout_constraintTop_toBottomOf="@+id/button2" />
 
 </android.support.constraint.ConstraintLayout>

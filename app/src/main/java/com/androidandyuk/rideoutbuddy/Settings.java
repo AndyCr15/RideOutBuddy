@@ -22,6 +22,8 @@ import static com.androidandyuk.rideoutbuddy.MainActivity.locationUpdatesDistanc
 import static com.androidandyuk.rideoutbuddy.MainActivity.locationUpdatesTime;
 import static com.androidandyuk.rideoutbuddy.MainActivity.mapType;
 import static com.androidandyuk.rideoutbuddy.MainActivity.saveSettings;
+import static com.androidandyuk.rideoutbuddy.MainActivity.user;
+import static com.androidandyuk.rideoutbuddy.MainActivity.userMember;
 
 public class Settings extends AppCompatActivity {
 
@@ -47,6 +49,7 @@ public class Settings extends AppCompatActivity {
 
         setSpinners();
 
+        TextView loggedInTV = (TextView) findViewById(R.id.loggedInTV);
         TextView yourVersionTV = (TextView) findViewById(R.id.yourVersionTV);
         TextView latestVersionTV = (TextView) findViewById(R.id.latestVersionTV);
         TextView releaseNotesTV = (TextView) findViewById(R.id.releaseNotesTV);
@@ -57,6 +60,11 @@ public class Settings extends AppCompatActivity {
         releaseNotesTV.setText("Release Notes : " + devRelease);
         commentsTV.setText("Dev Comments : " + devComment);
 
+        if(userMember!=null) {
+            loggedInTV.setText("Logged in as " + user.getDisplayName());
+        } else {
+            loggedInTV.setText("You must log in to Google to use this app.");
+        }
     }
 
     public void loadUpdateFolder(View view){

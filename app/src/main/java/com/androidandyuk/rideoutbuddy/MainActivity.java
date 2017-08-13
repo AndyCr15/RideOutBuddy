@@ -4,12 +4,14 @@ import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.graphics.Typeface;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -17,6 +19,7 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.PowerManager;
 import android.support.annotation.NonNull;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.KeyEvent;
@@ -71,6 +74,8 @@ import java.util.Collections;
 import java.util.GregorianCalendar;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+
+import static android.os.Build.ID;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -196,8 +201,6 @@ public class MainActivity extends AppCompatActivity {
                 if (user != null) {
                     // User is signed in
                     Log.d("Login", "onAuthStateChanged:signed_in:" + user.getUid());
-                    Toast.makeText(MainActivity.this, "Signed in as " + user.getDisplayName(), Toast.LENGTH_SHORT).show();
-                    Log.i("SignedIn", "onAuthStateChanged");
                     userMember = new GroupMember(user.getUid(), user.getDisplayName());
                     invalidateOptionsMenu();
                     loadGroupsFromGoogle();
@@ -256,7 +259,7 @@ public class MainActivity extends AppCompatActivity {
                                     String password = map.get("Password");
                                     String ID = map.get("ID");
                                     String count = map.get("RiderCount");
-                                    Long created = Long.parseLong(map.get("Created"));
+                                    String created = map.get("Created");
                                     Long lastUsed = Long.parseLong(map.get("LastUsed"));
 
                                     // groups not used for 4 days are deleted
@@ -299,12 +302,68 @@ public class MainActivity extends AppCompatActivity {
                 saveSettings();
                 Log.i("listView", "Tapped " + position);
 
-                checkPassword();
-
+                // if you created the group, no more use of the password check
+                if(groups.get(position).created.equals(userMember.ID)) {
+                    addMemberToGoogle(userMember, activeGroup);
+                    rootDB.removeEventListener(groupListener);
+                    Intent intent = new Intent(getApplicationContext(), MapsActivity.class);
+                    startActivity(intent);
+                } else {
+                    checkPassword();
+                }
             }
         });
 
-        new MyAsyncTaskgetNews().execute(jsonLocation + "devnotes.json");
+        listView.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
+            @Override
+            public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
+
+                final int thisPosition = position;
+                String groupCreator = groups.get(position).created;
+
+                if(groupCreator.equals(userMember.ID)) {
+                    Log.i("riderCount",groups.get(position).riderCount);
+
+                    if(groups.get(position).riderCount.equals("0")){
+
+                        new AlertDialog.Builder(MainActivity.this)
+                                .setIcon(android.R.drawable.ic_dialog_alert)
+                                .setTitle("Remove this group?")
+                                .setMessage("The group will be deleted forever")
+                                .setPositiveButton("Delete", new DialogInterface.OnClickListener() {
+                                    @Override
+                                    public void onClick(DialogInterface dialog, int which) {
+
+                                        //remove group
+                                        rootDB.child(groups.get(thisPosition).ID).removeValue();
+                                        groups.remove(thisPosition);
+                                        myAdapter.notifyDataSetChanged();
+                                        Log.i("Removing Old Group", ID);
+                                    }
+                                })
+                                .setNegativeButton("Keep", new DialogInterface.OnClickListener() {
+                                    public void onClick(DialogInterface dialog, int id) {
+                                    }
+                                })
+                                .show();
+
+
+
+
+
+                    } else {
+                        Toast.makeText(MainActivity.this, "The group must be empty to delete it.", Toast.LENGTH_SHORT).show();
+                    }
+
+                } else {
+                    Toast.makeText(MainActivity.this, "You can only remove groups you created.", Toast.LENGTH_SHORT).show();
+                }
+
+                return true;
+            }
+        });
+
+//        new MyAsyncTaskgetNews().execute(jsonLocation + "devnotes.json");
 
     }
 
@@ -452,14 +511,18 @@ public class MainActivity extends AppCompatActivity {
 
             TextView groupName = (TextView) myView.findViewById(R.id.groupName);
             groupName.setText(s.name);
+            if(userMember!=null) {
+                if (s.created.equals(userMember.ID)) {
+                    groupName.setTypeface(null, Typeface.BOLD);
+                }
+            }
 
             TextView members = (TextView) myView.findViewById(R.id.membersTV);
             int size = Integer.parseInt(s.riderCount);
             members.setText("Riders :" + size);
 
-            TextView created = (TextView) myView.findViewById(R.id.createdTV);
-            Log.i("s.created", "" + s.created);
-            created.setText("Last Used :" + millisToTime(s.lastUsed));
+            TextView lastUsed = (TextView) myView.findViewById(R.id.lastUsedTV);
+            lastUsed.setText("Last Used :" + millisToTime(s.lastUsed));
 
             return myView;
         }
@@ -546,7 +609,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         protected void onPostExecute(String result2) {
-            checkUpdate();
+//            checkUpdate();
         }
 
     }
@@ -575,12 +638,11 @@ public class MainActivity extends AppCompatActivity {
 
     //   GOOGLE SIGN IN
 
-    private void signIn() {
+    public void signIn() {
         Log.i("signIn", "Starting");
 
         Intent signInIntent = Auth.GoogleSignInApi.getSignInIntent(mGoogleApiClient);
         startActivityForResult(signInIntent, RC_SIGN_IN);
-
 
     }
 
@@ -630,8 +692,9 @@ public class MainActivity extends AppCompatActivity {
         mAuth.signOut();
         Auth.GoogleSignInApi.signOut(mGoogleApiClient);
         Log.i("signOut", "Complete");
-        Toast.makeText(MainActivity.this, "Signed Out", Toast.LENGTH_SHORT).show();
+        userMember = null;
         invalidateOptionsMenu();
+        signIn();
     }
 
     //   GOOGLE SIGN IN END
@@ -653,7 +716,7 @@ public class MainActivity extends AppCompatActivity {
         rootDB.child(o.ID).child("Details").child("Name").setValue(o.name);
         rootDB.child(o.ID).child("Details").child("Password").setValue(o.password);
         rootDB.child(o.ID).child("Details").child("ID").setValue(o.ID);
-        rootDB.child(o.ID).child("Details").child("Created").setValue(o.created.toString());
+        rootDB.child(o.ID).child("Details").child("Created").setValue(o.created);
         rootDB.child(o.ID).child("Details").child("LastUsed").setValue(Long.toString(System.currentTimeMillis()));
         rootDB.child(o.ID).child("Details").child("RiderCount").setValue(o.riderCount);
     }
@@ -812,7 +875,7 @@ public class MainActivity extends AppCompatActivity {
         if (user == null) {
             signInOut = "Sign In";
         } else {
-            signInOut = "Sign Out";
+            signInOut = "Change User";
         }
 
         menu.add(0, 0, 0, "Settings").setShortcut('3', 'c');
@@ -876,7 +939,7 @@ public class MainActivity extends AppCompatActivity {
         Log.i("onResume", "activeGroup" + activeGroup);
         loadSettings();
         loadGroupsFromGoogle();
-        checkUpdate();
+//        checkUpdate();
     }
 
     @Override

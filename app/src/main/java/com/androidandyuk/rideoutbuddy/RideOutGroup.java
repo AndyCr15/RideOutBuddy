@@ -12,20 +12,20 @@ public class RideOutGroup implements Comparable<RideOutGroup> {
     String ID;
     String name;
     String password;
-    Long created;
+    String created;
     Long lastUsed;
     String riderCount;
 
-    public RideOutGroup(String name, String password) {
+    public RideOutGroup(String name, String password, String created) {
         this.name = name;
         this.password = password;
         this.ID = name + System.currentTimeMillis();
-        this.created = System.currentTimeMillis();
+        this.created = created;
         this.lastUsed = System.currentTimeMillis();
         this.riderCount = "0";
     }
 
-    public RideOutGroup(String ID, String name, String password, String riderCount, Long created, Long lastUsed) {
+    public RideOutGroup(String ID, String name, String password, String riderCount, String created, Long lastUsed) {
         this.name = name;
         this.password = password;
         this.ID = ID;
