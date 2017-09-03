@@ -4,22 +4,6 @@
     android:layout_width="fill_parent"
     android:layout_height="fill_parent">
 
-    <android.support.design.widget.FloatingActionButton
-        android:id="@+id/floatingActionButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
-        android:layout_alignParentEnd="true"
-        android:layout_alignParentRight="true"
-        android:layout_marginBottom="24dp"
-        android:layout_marginRight="24dp"
-        android:layout_weight="1"
-        android:clickable="true"
-        android:onClick="centreMapOnUserButton"
-        app:elevation="24dp"
-        app:fabSize="normal"
-        app:srcCompat="@android:drawable/ic_menu_mylocation" />
-
     <fragment
         android:id="@+id/map"
         android:name="com.google.android.gms.maps.SupportMapFragment"
@@ -42,7 +26,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:layout_margin="8dp"
-            android:background="@drawable/rounded_corners_grey"
+            android:background="@drawable/rounded_corners_grey_accent"
             android:orientation="vertical"
             android:padding="4dp">
 
@@ -57,7 +41,8 @@
                     android:layout_height="wrap_content"
                     android:layout_margin="4dp"
                     android:layout_weight="1"
-                    android:text="TextView" />
+                    android:text="TextView"
+                    android:textColor="@android:color/white" />
 
                 <TextView
                     android:id="@+id/tripTime"
@@ -65,7 +50,8 @@
                     android:layout_height="wrap_content"
                     android:layout_margin="4dp"
                     android:layout_weight="1"
-                    android:text="Trip Time" />
+                    android:text="Trip Time"
+                    android:textColor="@android:color/white" />
             </LinearLayout>
 
             <LinearLayout
@@ -79,7 +65,8 @@
                     android:layout_height="wrap_content"
                     android:layout_margin="4dp"
                     android:layout_weight="1"
-                    android:text="Average Speed" />
+                    android:text="Average Speed"
+                    android:textColor="@android:color/white" />
 
                 <TextView
                     android:id="@+id/tripTop"
@@ -88,7 +75,8 @@
                     android:layout_margin="4dp"
                     android:layout_weight="1"
                     android:onClick="showTopSpeed"
-                    android:text="Top Speed" />
+                    android:text="Top Speed"
+                    android:textColor="@android:color/white" />
             </LinearLayout>
 
         </LinearLayout>
@@ -114,9 +102,10 @@
                 android:layout_height="wrap_content"
                 android:layout_margin="8dp"
                 android:alpha="0.8"
-                android:background="@drawable/rounded_corners_grey"
+                android:background="@drawable/rounded_corners_grey_accent"
                 android:onClick="importTrip"
                 android:text="Import Trip"
+                android:textColor="@android:color/white"
                 android:textSize="12sp" />
 
             <ImageView
@@ -132,9 +121,10 @@
                 android:layout_margin="8dp"
                 android:layout_weight="1"
                 android:alpha="0.8"
-                android:background="@drawable/rounded_corners_grey"
+                android:background="@drawable/rounded_corners_grey_accent"
                 android:onClick="editTrip"
                 android:text="Edit Trip"
+                android:textColor="@android:color/white"
                 android:textSize="12sp" />
 
             <ImageView
@@ -149,10 +139,11 @@
                 android:layout_height="wrap_content"
                 android:layout_margin="8dp"
                 android:alpha="0.8"
-                android:background="@drawable/rounded_corners_grey"
+                android:background="@drawable/rounded_corners_grey_accent"
                 android:onClick="exportTrip"
                 android:padding="4dp"
                 android:text="Export Trip"
+                android:textColor="@android:color/white"
                 android:textSize="12sp" />
         </LinearLayout>
 
@@ -161,7 +152,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_margin="8dp"
-            android:background="@drawable/rounded_corners"
+            android:background="@drawable/rounded_corners_primary"
             android:onClick="returnClicked"
             android:text="return"
             android:textColor="@android:color/white"
@@ -212,7 +203,7 @@
                 android:layout_margin="4dp"
                 android:layout_weight="1"
                 android:alpha="0.9"
-                android:background="@drawable/rounded_corners_grey"
+                android:background="@drawable/rounded_corners_grey_accent"
                 android:elevation="24dp"
                 android:onClick="recordTrip"
                 android:paddingEnd="16dp"
@@ -243,7 +234,7 @@
             android:layout_margin="4dp"
             android:layout_weight="1"
             android:alpha="0.9"
-            android:background="@drawable/rounded_corners"
+            android:background="@drawable/rounded_corners_primary"
             android:text="Rider info will be here. Press Next."
             android:textAlignment="center"
             android:textColor="@android:color/white" />
@@ -274,7 +265,7 @@
                     android:layout_height="wrap_content"
                     android:layout_margin="4dp"
                     android:alpha="0.9"
-                    android:background="@drawable/rounded_corners_grey"
+                    android:background="@drawable/rounded_corners_grey_primary"
                     android:onClick="viewTripClicked"
                     android:text="View Trip"
                     android:textColor="@android:color/white" />
@@ -285,7 +276,7 @@
                     android:layout_height="wrap_content"
                     android:layout_margin="4dp"
                     android:alpha="0.9"
-                    android:background="@drawable/rounded_corners_grey"
+                    android:background="@drawable/rounded_corners_grey_primary"
                     android:onClick="clearTrip"
                     android:text="Clear Trip"
                     android:textColor="@android:color/white" />
@@ -299,9 +290,25 @@
                 android:layout_margin="4dp"
                 android:layout_weight="0"
                 android:alpha="0.9"
-                android:background="@drawable/rounded_corners_grey"></ListView>
+                android:background="@drawable/rounded_corners_grey_primary"></ListView>
 
         </LinearLayout>
     </LinearLayout>
+
+    <android.support.design.widget.FloatingActionButton
+        android:id="@+id/floatingActionButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentRight="true"
+        android:layout_marginBottom="24dp"
+        android:layout_marginRight="24dp"
+        android:layout_weight="1"
+        android:clickable="true"
+        android:onClick="centreMapOnUserButton"
+        app:elevation="24dp"
+        app:fabSize="normal"
+        app:srcCompat="@android:drawable/ic_menu_mylocation" />
 
 </RelativeLayout>

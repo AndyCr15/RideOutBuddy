@@ -4,10 +4,12 @@ import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Intent;
+import android.graphics.Typeface;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -15,6 +17,7 @@ import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
 
@@ -32,6 +35,8 @@ import static com.androidandyuk.rideoutbuddy.MainActivity.activeGroup;
 import static com.androidandyuk.rideoutbuddy.MainActivity.messages;
 import static com.androidandyuk.rideoutbuddy.MainActivity.messagesDB;
 import static com.androidandyuk.rideoutbuddy.MainActivity.millisToTime;
+import static com.androidandyuk.rideoutbuddy.MainActivity.user;
+import static com.androidandyuk.rideoutbuddy.MainActivity.userMember;
 import static com.androidandyuk.rideoutbuddy.MapsActivity.myChatAdapter2;
 
 /**
@@ -56,7 +61,7 @@ public class ChatRoom extends AppCompatActivity {
 //        input_msg = (EditText) findViewById(R.id.msg_input);
         listView = (ListView) findViewById(R.id.chatListView);
 
-        user_name = MainActivity.user.getDisplayName();
+        user_name = user.getDisplayName();
         room_name = activeGroup.name;
         setTitle("Group - " + room_name);
 
@@ -103,7 +108,7 @@ public class ChatRoom extends AppCompatActivity {
         });
     }
 
-    public void newMessage(String msg){
+    public void newMessage(String msg) {
         temp_key = messagesDB.push().getKey();
 
         Map<String, Object> map = new HashMap<String, Object>();
@@ -128,12 +133,12 @@ public class ChatRoom extends AppCompatActivity {
         listView.setAdapter(myChatAdapter);
     }
 
-    private void checkMessages(){
-        Log.i("checkMessages","Called");
+    private void checkMessages() {
+        Log.i("checkMessages", "Called");
         messagesDB.addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(DataSnapshot dataSnapshot) {
-                Log.i("ChatRoom checkMessages","onDataChange");
+                Log.i("ChatRoom checkMessages", "onDataChange");
                 messages.clear();
                 for (DataSnapshot messagesDS : dataSnapshot.getChildren()) {
                     GenericTypeIndicator<Map<String, String>> genericTypeIndicator = new GenericTypeIndicator<Map<String, String>>() {
@@ -172,14 +177,14 @@ public class ChatRoom extends AppCompatActivity {
 
     private void checkEmergency() {
 
-        Log.i("checkEmergency","messages.size " + messages.size());
+        Log.i("checkEmergency", "messages.size " + messages.size());
 
         for (ChatMessage thisMessage : messages) {
 
             // check for an emergency
             if (thisMessage.message.contains("** EMERGENCY **")) {
 
-                Log.i("checkEmergency","Emergency Found");
+                Log.i("checkEmergency", "Emergency Found");
 
                 Intent intent = new Intent(this, MainActivity.class);
                 PendingIntent pendingIntent = PendingIntent.getActivity(this, 1, intent, 0);
@@ -246,7 +251,36 @@ public class ChatRoom extends AppCompatActivity {
             if (thisMessage.contains("** EMERGENCY **")) {
                 message.setTextColor(getResources().getColor(R.color.colorRed));
             }
+
+            if (s.name != null) {
+                if (s.name.equals(userMember.name)) {
+                    Log.i("User Made Message", "Found");
+                    LinearLayout chat = (LinearLayout) myView.findViewById(R.id.chat);
+                    View messageView = myView.findViewById(R.id.messageView);
+
+                    message.setTypeface(null, Typeface.BOLD);
+                    message.setGravity(Gravity.RIGHT);
+
+                    final int sdk = android.os.Build.VERSION.SDK_INT;
+                    if (sdk < android.os.Build.VERSION_CODES.JELLY_BEAN) {
+                        messageView.setBackgroundDrawable(getResources().getDrawable(R.drawable.rounded_corners_grey_accent));
+                    } else {
+                        messageView.setBackground(getResources().getDrawable(R.drawable.rounded_corners_grey_accent));
+                    }
+
+                }
+            }
+
             return myView;
+        }
+    }
+
+    public static void setMargins(View v, int l, int t, int r, int b) {
+        Log.i("setMargins", "" + v);
+        if (v.getLayoutParams() instanceof ViewGroup.MarginLayoutParams) {
+            ViewGroup.MarginLayoutParams p = (ViewGroup.MarginLayoutParams) v.getLayoutParams();
+            p.setMargins(l, t, r, b);
+            v.requestLayout();
         }
     }
 

@@ -96,9 +96,10 @@ import static com.androidandyuk.rideoutbuddy.MainActivity.tripDB;
 import static com.androidandyuk.rideoutbuddy.MainActivity.user;
 import static com.androidandyuk.rideoutbuddy.MainActivity.userHome;
 import static com.androidandyuk.rideoutbuddy.MainActivity.userMember;
+import static com.androidandyuk.rideoutbuddy.R.id.map;
 import static java.lang.Double.parseDouble;
 
-public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, GoogleMap.OnMapLongClickListener {
+public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, GoogleMap.OnMapLongClickListener, GoogleMap.OnMarkerClickListener {
 
     private static GoogleMap mMap;
 
@@ -122,7 +123,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         setContentView(R.layout.activity_maps);
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
-        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
+        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(map);
         mapFragment.getMapAsync(this);
 
         viewing = 0;
@@ -195,7 +196,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     String stamp = map.get("stamp");
 
                     // messages over 3 days old are deleted
-                    if((Long.valueOf(stamp) + 259200000) > System.currentTimeMillis()) {
+                    if ((Long.valueOf(stamp) + 259200000) > System.currentTimeMillis()) {
                         ChatMessage newMessage = new ChatMessage(ID, name, msg, stamp);
                         Log.i("Adding newMessage", "" + newMessage);
                         messages.add(newMessage);
@@ -256,6 +257,16 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             }
         }
 
+    }
+
+    @Override
+    public boolean onMarkerClick(Marker marker) {
+
+        LatLng thisLatLng = new LatLng(marker.getPosition().latitude, marker.getPosition().longitude);
+        mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(thisLatLng, 18));
+        Log.i("onMarkerClick", "memberLatLng " + thisLatLng);
+
+        return true;
     }
 
     public class AppConstant {
@@ -605,6 +616,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         mMap.setOnMapLongClickListener(this);
 
+        mMap.setOnMarkerClickListener(this);
+
         mapView = true;
 
 
@@ -628,7 +641,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     }
 
-    public void setupLocationManager(){
+    public void setupLocationManager() {
         locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
 
         locationListener = new LocationListener() {
@@ -715,11 +728,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
 
             if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-
-//                locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, locationUpdatesTime, locationUpdatesDistance, locationListener);
-//
-//                lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-//                updateLocationGoogle(lastKnownLocation);
 
                 centerMapOnLocation(lastKnownLocation);
             }
@@ -829,6 +837,44 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
     }
 
+    public void importDB() {
+        Log.i("ImportDB", "Started");
+        try {
+            String DB_PATH = "/data/data/com.androidandyuk.rideoutbuddy/databases/trip";
+
+            File sdcard = Environment.getExternalStorageDirectory();
+            String yourDbFileNamePresentInSDCard = sdcard.getAbsolutePath() + File.separator + "RideOutBuddy/Trip.db";
+
+            Log.i("ImportDB", "SDCard File " + yourDbFileNamePresentInSDCard);
+
+            File file = new File(yourDbFileNamePresentInSDCard);
+            // Open your local db as the input stream
+            InputStream myInput = new FileInputStream(file);
+
+            // Path to created empty db
+            String outFileName = DB_PATH;
+
+            // Opened assets database structure
+            OutputStream myOutput = new FileOutputStream(outFileName);
+
+            // transfer bytes from the inputfile to the outputfile
+            byte[] buffer = new byte[1024];
+            int length;
+            while ((length = myInput.read(buffer)) > 0) {
+                myOutput.write(buffer, 0, length);
+            }
+
+            // Close the streams
+            myOutput.flush();
+            myOutput.close();
+            myInput.close();
+        } catch (Exception e) {
+            Log.i("ImportDB", "Exception Caught" + e);
+        }
+        loadTrip();
+        viewTrip();
+    }
+
     public void exportTrip(View view) {
         importingDB = false;
         int REQUEST_ID_MULTIPLE_PERMISSIONS = 1;
@@ -886,44 +932,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
     }
 
-    public void importDB() {
-        Log.i("ImportDB", "Started");
-        try {
-            String DB_PATH = "/data/data/com.androidandyuk.rideoutbuddy/databases/trip";
-
-            File sdcard = Environment.getExternalStorageDirectory();
-            String yourDbFileNamePresentInSDCard = sdcard.getAbsolutePath() + File.separator + "RideOutBuddy/Trip.db";
-
-            Log.i("ImportDB", "SDCard File " + yourDbFileNamePresentInSDCard);
-
-            File file = new File(yourDbFileNamePresentInSDCard);
-            // Open your local db as the input stream
-            InputStream myInput = new FileInputStream(file);
-
-            // Path to created empty db
-            String outFileName = DB_PATH;
-
-            // Opened assets database structure
-            OutputStream myOutput = new FileOutputStream(outFileName);
-
-            // transfer bytes from the inputfile to the outputfile
-            byte[] buffer = new byte[1024];
-            int length;
-            while ((length = myInput.read(buffer)) > 0) {
-                myOutput.write(buffer, 0, length);
-            }
-
-            // Close the streams
-            myOutput.flush();
-            myOutput.close();
-            myInput.close();
-        } catch (Exception e) {
-            Log.i("ImportDB", "Exception Caught" + e);
-        }
-        loadTrip();
-        viewTrip();
-    }
-
     public double distanceFromHome(Location o) {
         Log.i("distanceFromHome", "Location " + o);
         Log.i("HomeLocation", "Location " + userHome);
@@ -965,7 +973,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 //            i("Center View on User", "LK Location updated");
 //            lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
 //            updateLocationGoogle(lastKnownLocation);
-            centerMapOnLocation(lastKnownLocation);
+        centerMapOnLocation(lastKnownLocation);
 //        }
     }
 
@@ -1001,7 +1009,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 e.printStackTrace();
             }
 
-//            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(selectedLatLng, 15));
         } else {
             Toast.makeText(this, "User within home geolocation, location hidden", Toast.LENGTH_LONG).show();
         }
@@ -1017,15 +1024,17 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 LatLng memberLatLng = new LatLng(thisMember.location.getLatitude(), thisMember.location.getLongitude());
                 Log.i("memberLatLng", "" + memberLatLng);
                 if (memberLatLng.latitude != 0 && memberLatLng.longitude != 0) {
+
+
                     Marker thisMarker = mMap.addMarker(new MarkerOptions()
                             .position(memberLatLng)
                             .title(thisMember.name)
                             .snippet("Status : '" + thisMember.state + "' - Last Update " + thisMember.updated)
                             .icon(BitmapDescriptorFactory.fromResource(R.drawable.bike_icon)));
                     thisMarker.showInfoWindow();
+
+
                 }
-//                LatLng thisLatLng = new LatLng(lastKnownLocation.getLatitude(), lastKnownLocation.getLongitude());
-//                mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(thisLatLng, 10));
             }
         } else {
             Log.i("showRiders", "mMap null");
@@ -1039,11 +1048,14 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     public void viewPrevious(View view) {
         viewingTrip = false;
-        if (members.size() > 0) {
+        if (members.size() > 1) {
             viewing--;
             Log.i("viewPrevious", "Viewing " + viewing);
             if (viewing < 0) {
                 viewing = members.size() - 1;
+            }
+            if (members.get(viewing).ID == userMember.ID) {
+                viewPrevious(view);
             }
             showRiders(members);
             viewOtherRider(members.get(viewing).location);
@@ -1053,11 +1065,14 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     public void viewNext(View view) {
         viewingTrip = false;
-        if (members.size() > 0) {
+        if (members.size() > 1) {
             viewing++;
             Log.i("viewNext", "Viewing " + viewing);
             if (viewing >= members.size()) {
                 viewing = 0;
+            }
+            if (members.get(viewing).ID == userMember.ID) {
+                viewNext(view);
             }
             showRiders(members);
             viewOtherRider(members.get(viewing).location);
@@ -1129,18 +1144,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                             @Override
                             public void onClick(DialogInterface dialog, int which) {
 
-                                //set this to be a new 'last used' for the group
-                                rootDB.child(activeGroup.ID).child("Details").child("LastUsed").setValue(Long.toString(System.currentTimeMillis()));
-
-                                mapView = false;
-                                new ChatRoom().newMessage("** " + userMember.name + " has left the group **");
-                                removeMemberFromGoogle(user.getUid(), activeGroup);
-                                activeGroup = null;
-                                saveSettings();
-
-                                stopLocationService();
-
-                                Log.i("LeavingGroup", "activeGroup" + activeGroup);
+                                leavingGroup();
 
                                 finish();
                             }
@@ -1155,19 +1159,42 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         return super.onKeyDown(keyCode, event);
     }
 
+    public void leavingGroup() {
+        //set this to be a new 'last used' for the group
+        rootDB.child(activeGroup.ID).child("Details").child("LastUsed").setValue(Long.toString(System.currentTimeMillis()));
+
+        mapView = false;
+        new ChatRoom().newMessage("** " + userMember.name + " has left the group **");
+        removeMemberFromGoogle(user.getUid(), activeGroup);
+        activeGroup = null;
+        saveSettings();
+
+        stopLocationService();
+
+        Log.i("leavingGroup", "activeGroup" + activeGroup);
+    }
+
     @Override
     protected void onPause() {
         super.onPause();
         saveSettings();
     }
 
-    public void startLocationService(){
+    public void startLocationService() {
 
-        Log.i("startLocationService","" + lastKnownLocation);
+        Log.i("startLocationService", "" + lastKnownLocation);
 
         if (Build.VERSION.SDK_INT < 23) {
 
-            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, locationUpdatesTime, locationUpdatesDistance, locationListener);
+//            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, locationUpdatesTime, locationUpdatesDistance, locationListener);
+
+            Intent intent = new Intent(this, MyService.class);
+            intent.putExtra("Time", locationUpdatesTime);
+            intent.putExtra("Dist", locationUpdatesDistance);
+            startService(intent);
+
+            lastKnownLocation.setLatitude(1d);
+            lastKnownLocation.setLongitude(50d);
 
         } else {
 
@@ -1191,7 +1218,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     }
 
-    public void startLocationManager(){
+    public void startLocationManager() {
+        // this was used for tracking location when the app was open.
+        // I then realised it was starting the service and tracking twice
+        // so now just use the service.
         try {
             if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                 return;
@@ -1202,7 +1232,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
     }
 
-    public void stopLocationService(){
+    public void stopLocationService() {
         try {
             Intent intent = new Intent(getApplicationContext(), MyService.class);
             stopService(intent);
@@ -1215,14 +1245,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     protected void onResume() {
 
-        Log.i("MapsActivity","onResume");
+        Log.i("MapsActivity", "onResume");
 
         loadSettings();
         checkRecording();
 
 
-
-        if(viewingTrip){
+        if (viewingTrip) {
             viewTrip();
         } else if (mapView) {
             // if mapView then likely returning from screen off
@@ -1244,9 +1273,17 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         //Register BroadcastReceiver
         //to receive event from our service
         myReceiver = new MyReceiver();
-        IntentFilter intentFilter = new IntentFilter();
-        registerReceiver(myReceiver, intentFilter);
+        IntentFilter iff = new IntentFilter(MyService.ACTION);
+        this.registerReceiver(myReceiver, iff);
 
         super.onStart();
+    }
+
+    @Override
+    protected void onDestroy() {
+
+        Log.i("MapsActivity", "onDestroy");
+
+        super.onDestroy();
     }
 }

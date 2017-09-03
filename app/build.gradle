@@ -15,8 +15,8 @@ android {
         applicationId "com.androidandyuk.rideoutbuddy"
         minSdkVersion 16
         targetSdkVersion 25
-        versionCode 14
-        versionName "v1.0.1"
+        versionCode 17
+        versionName "v1.1.1"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
@@ -45,15 +45,6 @@ dependencies {
     compile 'com.google.firebase:firebase-crash:10.2.1'
     testCompile 'junit:junit:4.12'
 }
-
-
-
-
-
-
-
-
-
 
 
 apply plugin: 'com.google.gms.google-services'

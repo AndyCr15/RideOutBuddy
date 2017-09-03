@@ -19,12 +19,16 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.PowerManager;
 import android.support.annotation.NonNull;
+import android.support.design.widget.NavigationView;
+import android.support.v4.view.GravityCompat;
+import android.support.v4.widget.DrawerLayout;
+import android.support.v7.app.ActionBarDrawerToggle;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
-import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
@@ -77,7 +81,7 @@ import java.util.concurrent.TimeUnit;
 
 import static android.os.Build.ID;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener {
 
     private FirebaseAnalytics mFirebaseAnalytics;
     private FirebaseAuth mAuth;
@@ -113,10 +117,10 @@ public class MainActivity extends AppCompatActivity {
     public static SimpleDateFormat dayOfWeek = new SimpleDateFormat("EEEE");
     public static SimpleDateFormat dateTimeFormatter = new SimpleDateFormat("dd/MM HH:mm:ss");
 
-    public static int timeDifference;
-
     public static final DecimalFormat precision = new DecimalFormat("0.00");
     public static final DecimalFormat oneDecimal = new DecimalFormat("0.#");
+
+    public static int timeDifference;
 
     public static String jsonLocation = "http://www.lanarchy.co.uk/";
 
@@ -148,6 +152,8 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+//        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
+//                WindowManager.LayoutParams.FLAG_FULLSCREEN);
         setContentView(R.layout.activity_main);
 
         Log.i("MainActivity", "onCreate");
@@ -204,6 +210,7 @@ public class MainActivity extends AppCompatActivity {
                     userMember = new GroupMember(user.getUid(), user.getDisplayName());
                     invalidateOptionsMenu();
                     loadGroupsFromGoogle();
+                    setToolbarUser();
                 } else {
                     // User is signed out
                     Log.d("Login", "onAuthStateChanged:signed_out");
@@ -237,7 +244,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onDataChange(DataSnapshot dataSnapshot) {
 
-                if(!mapView) {
+                if (!mapView) {
                     Log.i("ValueEventListener", "Count :" + dataSnapshot.getChildrenCount());
                     groups.clear();
 
@@ -263,7 +270,7 @@ public class MainActivity extends AppCompatActivity {
                                     Long lastUsed = Long.parseLong(map.get("LastUsed"));
 
                                     // groups not used for 4 days are deleted
-                                    if((lastUsed + 345600000) > System.currentTimeMillis()) {
+                                    if ((lastUsed + 345600000) > System.currentTimeMillis()) {
                                         rootDB.child(groupDS.getKey()).child("Details").child("RiderCount").setValue(Long.toString(dataSnapshot.child(groupDS.getKey()).child("Riders").getChildrenCount()));
                                         RideOutGroup newGroup = new RideOutGroup(ID, name, password, count, created, lastUsed);
                                         groups.add(newGroup);
@@ -303,7 +310,7 @@ public class MainActivity extends AppCompatActivity {
                 Log.i("listView", "Tapped " + position);
 
                 // if you created the group, no more use of the password check
-                if(groups.get(position).created.equals(userMember.ID)) {
+                if (groups.get(position).created.equals(userMember.ID)) {
                     addMemberToGoogle(userMember, activeGroup);
                     rootDB.removeEventListener(groupListener);
                     Intent intent = new Intent(getApplicationContext(), MapsActivity.class);
@@ -321,10 +328,10 @@ public class MainActivity extends AppCompatActivity {
                 final int thisPosition = position;
                 String groupCreator = groups.get(position).created;
 
-                if(groupCreator.equals(userMember.ID)) {
-                    Log.i("riderCount",groups.get(position).riderCount);
+                if (groupCreator.equals(userMember.ID)) {
+                    Log.i("riderCount", groups.get(position).riderCount);
 
-                    if(groups.get(position).riderCount.equals("0")){
+                    if (groups.get(position).riderCount.equals("0")) {
 
                         new AlertDialog.Builder(MainActivity.this)
                                 .setIcon(android.R.drawable.ic_dialog_alert)
@@ -348,9 +355,6 @@ public class MainActivity extends AppCompatActivity {
                                 .show();
 
 
-
-
-
                     } else {
                         Toast.makeText(MainActivity.this, "The group must be empty to delete it.", Toast.LENGTH_SHORT).show();
                     }
@@ -365,6 +369,32 @@ public class MainActivity extends AppCompatActivity {
 
 //        new MyAsyncTaskgetNews().execute(jsonLocation + "devnotes.json");
 
+        setToolbar();
+
+    }
+
+    private void setToolbar() {
+        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+
+        DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
+        ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
+                this, drawer, toolbar, R.string.navigation_drawer_open, R.string.navigation_drawer_close);
+        drawer.setDrawerListener(toggle);
+        toggle.syncState();
+
+        NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view);
+        navigationView.setNavigationItemSelectedListener(this);
+
+    }
+
+    public void setToolbarUser(){
+        NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view);
+        View headerView = navigationView.getHeaderView(0);
+        TextView userName = (TextView) headerView.findViewById(R.id.nav_user);
+        if(userMember.name!=null) {
+            userName.setText(userMember.name);
+        }
     }
 
     public boolean checkUpdate() {
@@ -373,7 +403,7 @@ public class MainActivity extends AppCompatActivity {
         if (!appVersion.equals(devVersion) && devVersion != null) {
             Toast.makeText(this, "Update your app! Go to Settings", Toast.LENGTH_SHORT).show();
 
-            Intent intent = new Intent(getApplicationContext(),Settings.class);
+            Intent intent = new Intent(getApplicationContext(), Settings.class);
             PendingIntent pendingIntent = PendingIntent.getActivity(getApplicationContext(), 1, intent, 0);
 
             Notification notification = new Notification.Builder(getApplicationContext())
@@ -449,34 +479,76 @@ public class MainActivity extends AppCompatActivity {
         startActivity(intent);
     }
 
-    public void changeListedBy(View view){
-        groupListMethod += 1;
-        if(groupListMethod>3){
+//    public void changeListedBy(View view) {
+//        groupListMethod += 1;
+//        if (groupListMethod > 3) {
+//            groupListMethod = 1;
+//        }
+//
+//        updateSortedBy();
+//
+//    }
+
+//    private void updateSortedBy() {
+//        TextView listedByTV = (TextView) findViewById(R.id.listedByTV);
+//        switch (groupListMethod) {
+//            case 1:
+//                listedByTV.setText("Sorted Alphabetically");
+//                initiateList();
+//                return;
+//            case 2:
+//                listedByTV.setText("Sorted Reverse Alphabetically");
+//                initiateList();
+//                return;
+//            case 3:
+//                listedByTV.setText("Sorted Most Recently Used");
+//                initiateList();
+//                return;
+//        }
+//    }
+
+    @Override
+    public boolean onNavigationItemSelected(MenuItem item) {
+        // Handle navigation view item clicks here.
+        int id = item.getItemId();
+
+        if (id == R.id.nav_settings) {
+
+            Intent intent = new Intent(getApplicationContext(), Settings.class);
+            startActivity(intent);
+
+        } else if (id == R.id.nav_logout) {
+
+            if (user == null) {
+                signIn();
+            } else {
+                signOut();
+            }
+
+        } else if (id == R.id.nav_atoz) {
+
             groupListMethod = 1;
+            initiateList();
+
+        } else if (id == R.id.nav_ztoa) {
+
+            groupListMethod = 2;
+            initiateList();
+
+        } else if (id == R.id.nav_time) {
+
+            groupListMethod = 3;
+            initiateList();
+
+        }else if (id == R.id.nav_exit) {
+
+            finish();
+
         }
 
-        updateSortedBy();
-
-    }
-
-    private void updateSortedBy() {
-        TextView listedByTV = (TextView)findViewById(R.id.listedByTV);
-        switch(groupListMethod){
-            case 1:
-                listedByTV.setText("Sorted Alphabetically");
-                initiateList();
-                return;
-            case 2:
-                listedByTV.setText("Sorted Reverse Alphabetically");
-                initiateList();
-                return;
-            case 3:
-                listedByTV.setText("Sorted Most Recently Used");
-                initiateList();
-                return;
-        }
-
-
+        DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
+        drawer.closeDrawer(GravityCompat.START);
+        return true;
 
     }
 
@@ -511,7 +583,7 @@ public class MainActivity extends AppCompatActivity {
 
             TextView groupName = (TextView) myView.findViewById(R.id.groupName);
             groupName.setText(s.name);
-            if(userMember!=null) {
+            if (userMember != null) {
                 if (s.created.equals(userMember.ID)) {
                     groupName.setTypeface(null, Typeface.BOLD);
                 }
@@ -548,8 +620,7 @@ public class MainActivity extends AppCompatActivity {
         return String.format("%d hrs, %02d mins",
                 TimeUnit.MILLISECONDS.toHours(millis),
                 TimeUnit.MILLISECONDS.toMinutes(millis) -
-                        TimeUnit.MINUTES.toMinutes(TimeUnit.MILLISECONDS.toHours(millis))
-        );
+                        TimeUnit.HOURS.toMinutes(TimeUnit.MILLISECONDS.toHours(millis)));
     }
 
     // get news from server
@@ -764,9 +835,9 @@ public class MainActivity extends AppCompatActivity {
                     String thisLat = Double.toString(thisTrip.location.getLatitude());
                     String thisLon = Double.toString(thisTrip.location.getLongitude());
                     String thisTime = Long.toString(thisTrip.timeStamp);
-                    int startInt = (thisTrip.start)? 1 : 0;
-                    int stopInt = (thisTrip.start)? 1 : 0;
-                    int stationaryInt = (thisTrip.start)? 1 : 0;
+                    int startInt = (thisTrip.start) ? 1 : 0;
+                    int stopInt = (thisTrip.start) ? 1 : 0;
+                    int stationaryInt = (thisTrip.start) ? 1 : 0;
 
                     Log.i("Saving TripMarker", thisLat + " " + thisLon + " " + thisTime);
                     tripDB.execSQL("INSERT INTO trip (lat, lon, time, start, stop, stationary) VALUES ('" + thisLat + "' , '" + thisLon + "' , '" + thisTime + "' , '" + startInt + "' , '" + stopInt + "' , '" + stationaryInt + "')");
@@ -805,9 +876,9 @@ public class MainActivity extends AppCompatActivity {
                 Location thisLocation = new Location("51.5007292,-0.1268194");
                 thisLocation.setLatitude(Double.parseDouble(c.getString(latIndex)));
                 thisLocation.setLongitude(Double.parseDouble(c.getString(lonIndex)));
-                Boolean start = (c.getInt(startIndex) == 1)? true : false;
-                Boolean stop = (c.getInt(stopIndex) == 1)? true : false;
-                Boolean stationary = (c.getInt(stationaryIndex) == 1)? true : false;
+                Boolean start = (c.getInt(startIndex) == 1) ? true : false;
+                Boolean stop = (c.getInt(stopIndex) == 1) ? true : false;
+                Boolean stationary = (c.getInt(stationaryIndex) == 1) ? true : false;
                 TripMarker newMarker = new TripMarker(thisLocation, Long.parseLong(c.getString(timeIndex)), start, stop, stationary, "Loading");
 
                 trip.add(newMarker);
@@ -867,48 +938,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.menu_main, menu);
-
-        super.onCreateOptionsMenu(menu);
-
-        if (user == null) {
-            signInOut = "Sign In";
-        } else {
-            signInOut = "Change User";
-        }
-
-        menu.add(0, 0, 0, "Settings").setShortcut('3', 'c');
-        menu.add(0, 1, 0, signInOut).setShortcut('3', 'c');
-
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        int menu_choice = item.getItemId();
-        switch (menu_choice) {
-
-            case 0:
-                Log.i("Option", "1");
-                Intent intent = new Intent(getApplicationContext(), Settings.class);
-                startActivity(intent);
-                return true;
-            case 1:
-                Log.i("Option", "0");
-                if (user == null) {
-                    signIn();
-                } else {
-                    signOut();
-                }
-                return true;
-
-        }
-
-        return super.onOptionsItemSelected(item);
-    }
-
-    @Override
     public void onBackPressed() {
         // this must be empty as back is being dealt with in onKeyDown
     }
@@ -944,11 +973,11 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
-        super.onDestroy();
         Log.i("MainActivity", "onDestroy");
         mAuth.removeAuthStateListener(mAuthListener);
         rootDB.removeEventListener(groupListener);
         saveTrip();
+        super.onDestroy();
     }
 
 

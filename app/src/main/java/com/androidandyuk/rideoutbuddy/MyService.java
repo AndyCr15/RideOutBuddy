@@ -1,9 +1,7 @@
 package com.androidandyuk.rideoutbuddy;
 
-/**
- * Created by AndyCr15 on 15/07/2017.
- */
-
+import android.app.Notification;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
@@ -16,6 +14,7 @@ import android.util.Log;
 public class MyService extends Service
 {
     private static final String TAG = "LOCATIONSERVICE";
+    public static final String ACTION = "com.androidandyuk.rideoutbuddy";
     private LocationManager mLocationManager = null;
 
     int gpsTime;
@@ -34,17 +33,13 @@ public class MyService extends Service
         @Override
         public void onLocationChanged(Location location)
         {
-            Log.e(TAG, "onLocationService: " + location);
             Log.i(TAG, "onLocationService: " + location);
-
 
             String thisLat = Double.toString(location.getLatitude());
             String thisLon = Double.toString(location.getLongitude());
             Log.i("thisLat(inS) " + thisLat, "thisLon(inS) " + thisLon);
 
-            Intent intent = new Intent();
-            intent.setAction("com.androidandyuk.rideoutbuddy");
-            intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
+            Intent intent = new Intent(ACTION);
             intent.putExtra("Lat", thisLat);
             intent.putExtra("Lon", thisLon);
 
@@ -106,9 +101,22 @@ public class MyService extends Service
     }
 
     @Override
-    public void onCreate()
-    {
+    public void onCreate() {
         Log.e(TAG, "onCreate");
+
+        Intent notificationIntent = new Intent(this, MapsActivity.class);
+
+        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0,
+                notificationIntent, 0);
+
+        Notification notification = new Notification.Builder(this)
+                .setSmallIcon(R.drawable.icon)
+                .setContentTitle("Monitoring Location")
+                .setContentText("Tap here to return to the Map view")
+                .setContentIntent(pendingIntent).build();
+
+        startForeground(1337, notification);
+
         initializeLocationManager();
     }
 

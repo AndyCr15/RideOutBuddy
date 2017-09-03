@@ -9,6 +9,7 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:background="@color/colorBackground"
         android:orientation="vertical">
 
         <TextView
@@ -16,7 +17,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_margin="4dp"
-            android:background="@drawable/rounded_corners_reverse"
+            android:background="@drawable/rounded_corners_accent_primary"
             android:padding="8dp"
             android:text="Please Select your emergency.  The members of your group will be notified."
             android:textAlignment="center"
@@ -83,7 +84,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_margin="4dp"
-            android:background="@drawable/rounded_corners_grey"
+            android:background="@drawable/rounded_corners_grey_accent"
             android:onClick="clearEmergencies"
             android:text="clear emergencies"
             android:textColor="@android:color/white" />

@@ -14,6 +14,7 @@
         android:layout_marginTop="32dp"
         android:hint="Group Name"
         android:inputType="textCapSentences"
+        android:textColor="@android:color/white"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
@@ -26,6 +27,7 @@
         android:layout_marginTop="8dp"
         android:hint="Set Password"
         android:inputType="textPassword"
+        android:textColor="@android:color/white"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/groupNameET" />
@@ -35,7 +37,7 @@
         android:layout_width="150dp"
         android:layout_height="wrap_content"
         android:layout_marginTop="32dp"
-        android:background="@drawable/rounded_corners_reverse"
+        android:background="@drawable/rounded_corners_accent_primary"
         android:onClick="createGroup"
         android:text="create group"
         android:textColor="@android:color/white"
@@ -54,6 +56,7 @@
         android:padding="30dp"
         android:text="** PLEASE NOTE **\nGroups not used for 4 days are automatically removed.\nChat messages are automatically removed after 3 days.\nRemove your own group by long pressing on it."
         android:textAlignment="center"
+        android:textColor="@android:color/white"
         android:textSize="18sp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintHorizontal_bias="0.5"
